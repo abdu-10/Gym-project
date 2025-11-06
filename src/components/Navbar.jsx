@@ -39,10 +39,15 @@ useEffect(() => {
         <div className="flex justify-between h-20">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <span className={`text-2xl font-extrabold ${scrolled ? "text-gray-900" : "text-white"}`}>
-                FIT<span className="text-red-500">ELITE</span>
-              </span>
-              <div className={`ml-2 w-2 rounded-full animate-pulse ${scrolled ? "bg-red-600" : "bg-white"}`}></div>
+              <a 
+                href="#home" 
+                className={`flex items-center group hover:opacity-80 transition-opacity duration-300`}
+              >
+                <span className={`text-2xl font-extrabold ${scrolled ? "text-gray-900" : "text-white"}`}>
+                  FIT<span className="text-red-500">ELITE</span>
+                </span>
+                <div className={`ml-2 w-2 h-2 rounded-full animate-pulse ${scrolled ? "bg-red-600" : "bg-white"}`}></div>
+              </a>
             </div>
           </div>
           {/* Desktop menus */}
