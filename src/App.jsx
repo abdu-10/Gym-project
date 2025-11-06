@@ -8,6 +8,7 @@ import Classes from './components/Classes'
 import Pricing from './components/Pricing'
 import Trainers from './components/Trainers'
 import Testimonials from './components/Testimonials'
+import Contact from './components/Contact'
 function App() {
   const [activeSection , setActiveSection] = useState('home')
   return (
@@ -21,6 +22,7 @@ function App() {
         <Pricing />
         <Trainers />
         <Testimonials />
+        <Contact />
       </main>
     </div>
   )
