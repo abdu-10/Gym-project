@@ -149,7 +149,7 @@ function Features() {
             <div className='h-0.5 w-16 bg-red-600 ml-3'></div>
 
             </div>
-        <h2 className='text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-6'>Why Choose<span className='text-red-600'>FITELITE</span>?</h2>
+        <h2 className='text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-6'>Why Choose <span className='text-red-600'>FITELITE</span>?</h2>
         <p className='max-w-2xl mx-auto text-gray-600 text-lg'>We combine luxury amenities with professional training to provide the best fitness experience.</p>
 
 
