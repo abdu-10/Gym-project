@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { useState } from "react";
 
-function Navbar({ activeSection }) {
+function Navbar({ activeSection, setActiveSection }) {
   const [isOpen, setIsOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false);
 
@@ -57,10 +57,13 @@ useEffect(() => {
                 <a
                 href={link.href}
                 key={link.id}
-                className={'px-3 py-2 mx-1 text-sm font-medium transition-all duration-300 relative group'}
+                onClick={()=> setActiveSection(link.id)}
+                className={`px-3 py-2 mx-1 text-sm font-medium transition-all duration-300 relative group ${activeSection === link.id ? scrolled ? "text-red-600": "text-white" : scrolled ? "text-gray-700 hover:text-red-600" : "text-gray-200 hover:text-white"
+
+                 }`}
 >
                   {link.name}
-                  <span className={`absolute left-0 -bottom-0 w-full h-0.5 bg-red-600 transform origin-left scale-x-0 group-hover:scale-x-100 transition-all duration-300`}></span>
+                  <span className={`absolute left-0 -bottom-0 w-full h-0.5 bg-red-600 transform origin-left scale-x-0 group-hover:scale-x-100 transition-all duration-300 ${activeSection === link.id ? "scale-x-100": ""}`}></span>
                 </a>
               )
             })}
