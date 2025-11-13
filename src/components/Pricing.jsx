@@ -1,59 +1,60 @@
 import React from 'react'
 
-function Pricing() {
-    const plans = [
-        {
-            name: 'Basic',
-            price: '$29',
-            period: 'per month',
-            features: [
-                'Gym Access (6 AM - 10 PM)',
-                'Basic fitness equipment',
-                'Locker room access',
-                '2 group classes per week',
-                'Free fitness assessment',
-            ],
-            popular: false,
-            btnText: 'Choose Basic',
-            btnClass: "border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white"
+const plans = [
+    {
+        name: 'Basic',
+        price: '$29',
+        period: 'per month',
+        features: [
+            'Gym Access (6 AM - 10 PM)',
+            'Basic fitness equipment',
+            'Locker room access',
+            '2 group classes per week',
+            'Free fitness assessment',
+        ],
+        popular: false,
+        btnText: 'Choose Basic',
+        btnClass: "border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white"
 
-        },
-        {
-            name: 'Premium',
-            price: '$59',
-            period: 'per month',
-            features: [
-                '24/7 Gym Access',
-                'Full  equipment access',
-                'unlimited group classes',
-                '1 free PT session per month',
-                'Nutrition consultation',
-                'Access to sauna and spa',
-            ],
-            popular: true,
-            btnText: 'Choose Premium',
-            btnClass: "bg-red-600 text-white hover:bg-red-700"
-        },
-        {
-            name: 'Elite',
-            price: '$99',
-            period: 'per month',
-            features: [
-                '24/7 gym access',
-                'Full equipment access',
-                'Unlimited group classes',
-                '4 PT sessions per month',
-                'Monthly body composition analysis',
-                'Personalized nutrition plan',
-                'Access to all amenities',
-            ],
-            popular: false,
-            btnText: 'Choose Elite',
-            btnClass: " border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white"
+    },
+    {
+        name: 'Premium',
+        price: '$59',
+        period: 'per month',
+        features: [
+            '24/7 Gym Access',
+            'Full equipment access',
+            'unlimited group classes',
+            '1 free PT session per month',
+            'Nutrition consultation',
+            'Access to sauna and spa',
+        ],
+        popular: true,
+        btnText: 'Choose Premium',
+        btnClass: "bg-red-600 text-white hover:bg-red-700"
+    },
+    {
+        name: 'Elite',
+        price: '$99',
+        period: 'per month',
+        features: [
+            '24/7 gym access',
+            'Full equipment access',
+            'Unlimited group classes',
+            '4 PT sessions per month',
+            'Monthly body composition analysis',
+            'Personalized nutrition plan',
+            'Access to all amenities',
+        ],
+        popular: false,
+        btnText: 'Choose Elite',
+        btnClass: " border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white"
 
-        },
+    },
+];
 
-    ];
+
+function Pricing({ onSelectPlan }) {
 
   return (
     <div id="pricing" className='py-20 bg-gray-200'>
@@ -73,7 +74,7 @@ function Pricing() {
                 {/* map method */}
                 {plans.map((plan,index) =>{
                     return(
-                        <div className={`bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 ${plan.popular ? 'border-2 border-red-600 relative' : ''}`} key={index}>
+                        <div className={`bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col ${plan.popular ? 'border-2 border-red-600 relative' : ''}`} key={index}>
                             {/* conditional rendering */}
                             { plan.popular && (
                                 <div className='absolute top-0 right-0 bg-red-600 text-white py-1 px-4 rounded-bl-lg font-medium'>
@@ -81,7 +82,8 @@ function Pricing() {
                                 </div>
                             )}
 
-                            <div className='p-8'>
+                            
+                            <div className='p-8 flex-grow'> 
                                 <h3 className='text-2xl font-bold mb-2 text-gray-800'>
                                     {plan.name}
                                 </h3>
@@ -111,10 +113,17 @@ function Pricing() {
                                         </li>
                                     ))}
                                 </ul>
+                            </div>
 
-                                <a href='#' className={`w-full block text-center px-6 py-3 rounded-md font-medium transition duration-300 ${plan.btnClass}`}>
-                                    {plan.btnText}
-                                </a>
+                           
+                            <div className='p-8 pt-0'>
+                             
+                              <button 
+                                onClick={() => onSelectPlan(plan)} 
+                                className={`w-full block text-center px-6 py-3 rounded-md font-medium transition duration-300 ${plan.btnClass}`}
+                              >
+                                {plan.btnText}
+                              </button>
                             </div>
                         </div>
                     )
@@ -133,7 +142,7 @@ function Pricing() {
 
         </div>
 
-       
+        
     </div>
 
   )
