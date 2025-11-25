@@ -1,6 +1,6 @@
 import React from 'react'
 
-function Footer() {
+function Footer({ onOpenScanner }) {
   return (
     <footer className='bg-gray-900 text-white'>
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
@@ -130,7 +130,7 @@ function Footer() {
                 </div>
 
             </div>
-            <div className='py-6 border-t border-gray-800 text-center'>
+            <div onClick={onOpenScanner} className='py-6 border-t border-gray-800 text-center'>
                 <p className='text-gray-400 text-sm'>
                     &copy;{new Date().getFullYear()} FitLife Fitness Center. All rights reserved
                 </p>
