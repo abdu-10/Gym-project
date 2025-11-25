@@ -11,29 +11,53 @@ import Contact from './components/Contact';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
 import Checkout from './components/Checkout';
+import Login from './components/Login'; 
+import MemberDashboard from './components/MemberDashboard';
+import StaffScanner from './components/StaffScanner';
 
-const SECTIONS = [
-  "home",
-  "features",
-  "about",
-  "classes",
-  "pricing",
-  "trainers",
-  "testimonials",
-  "contact",
-];
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements } from '@stripe/react-stripe-js';
+
+const STRIPE_PUBLISHABLE_KEY = "pk_test_51SToBtAWbNWeBtveVOfzLPPnsKwEjU5ydkF0a2hp5tB4xJdGqiC3WZICbuIzMKtbCxEnlDjkU5MI3Lc0XY5HHObD00hREI3a2i";
+const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY);
+
+const SECTIONS = ["home", "features", "about", "classes", "pricing", "trainers", "testimonials", "contact"];
 
 function App() {
   const [activeSection, setActiveSection] = useState('home');
-
-  //  This state will control which page we see ---
-  // If it's 'null', we see the main landing page.
-  // If it has a plan, we see the checkout page.
   const [selectedPlan, setSelectedPlan] = useState(null);
+  const [viewScanner, setViewScanner] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [viewDashboard, setViewDashboard] = useState(false);
+  const [user, setUser] = useState(null); 
+
+  // --- NEW: Check Session Cookie on Load ---
+  // This replaces the old localStorage check.
+  // We ask the server "Who am I?" using the httpOnly cookie.
+  useEffect(() => {
+    fetch('http://localhost:3000/me', { 
+      credentials: 'include' // <--- CRITICAL: Sends the cookie to the server
+    })
+    .then(r => {
+      if (r.ok) return r.json();
+      throw new Error('Not logged in');
+    })
+    .then(data => {
+      setUser(data.user); // If the cookie is valid, log them in!
+    })
+    .catch(() => {
+      setUser(null); // If no cookie or invalid, stay logged out
+    });
+  }, []);
+
+  const handleLogin = (userData) => {
+    setUser(userData);
+    setShowLogin(false);
+    setViewDashboard(true);
+  };
 
   useEffect(() => {
     const handleScroll = () => {
-      // reveal on scroll
       const reveals = document.querySelectorAll(".reveal");
       for (let i = 0; i < reveals.length; i++) {
         const windowHeight = window.innerHeight;
@@ -47,7 +71,6 @@ function App() {
         }
       }
 
-      // update active section based on scroll position
       const ScrollPosition = window.scrollY;
       for (let i = SECTIONS.length - 1; i >= 0; i--) {
         const section = document.getElementById(SECTIONS[i]);
@@ -58,61 +81,85 @@ function App() {
       }
     };
 
-    // --- We only run this scroll logic IF we are on the main page ---
-    // If a plan is selected, the sections (like #home) don't exist,
-    // so we skip adding the event listener.
     if (!selectedPlan) {
       window.addEventListener("scroll", handleScroll);
-      // run once to set initial state
       handleScroll();
-
       return () => {
         window.removeEventListener("scroll", handleScroll);
       };
     }
   }, [selectedPlan]); 
-
-  
+ 
   return (
-    <div className='min-h-screen flex flex-col bg-gray-50'>
+    <Elements stripe={stripePromise}>
+      <div className='min-h-screen flex flex-col bg-gray-50'>
 
-      {/* This is the "magic" ternary operator.
-        It says: "Is 'selectedPlan' empty (null)?"
-        
-        IF YES: Show the entire original landing page.
-        IF NO:  Show only the Checkout page.
-      */}
+        {showLogin && (
+          <Login 
+            onLogin={handleLogin} 
+            onClose={() => setShowLogin(false)} 
+          />
+        )}
 
-      {!selectedPlan ? (
-        
-        <>
-          <Navbar activeSection={activeSection} setActiveSection={setActiveSection} />
-          <main>
-            <Hero />
-            <Features />
-            <About />
-            <Classes />
+        {/* If staff scanner view is active show it */}
+        {viewScanner ? (
+          <StaffScanner onGoHome={() => setViewScanner(false)} />
+        ) : (
+          /* 1. IF Dashboard is active & User is logged in -> SHOW DASHBOARD */
+          viewDashboard && user ? (
 
-            {/* --- NEW: We pass the 'onSelectPlan' prop to Pricing --- */}
-            <Pricing onSelectPlan={setSelectedPlan} />
+            <MemberDashboard 
+               user={user} 
+               onGoHome={() => setViewDashboard(false)} 
+            />
 
-            <Trainers />
-            <Testimonials />
-            <Contact />
-          </main>
-          <Footer />
-          <ScrollToTop />
-        </>
+          ) : !selectedPlan ? (
 
-      ) : (
+            // 2. IF No Plan Selected -> SHOW HOME PAGE
+            <>
+              <Navbar 
+                activeSection={activeSection} 
+                setActiveSection={setActiveSection} 
+                user={user}
+                onLoginClick={() => setShowLogin(true)}
+                
+                // --- UPDATED LOGOUT: Tell server to delete cookie ---
+                onLogout={() => { 
+                  fetch('http://localhost:3000/logout', { method: 'DELETE', credentials: 'include' })
+                  .then(() => {
+                    setUser(null);
+                    setViewDashboard(false);
+                  });
+                }}
+                
+                onDashboardClick={() => setViewDashboard(true)}
+              />
+              <main>
+                <Hero />
+                <Features />
+                <About />
+                <Classes />
+                <Pricing onSelectPlan={setSelectedPlan} />
+                <Trainers />
+                <Testimonials />
+                <Contact />
+              </main>
+              <Footer onOpenScanner={() => setViewScanner(true)} />
+              <ScrollToTop />
+            </>
 
-        <Checkout 
-          plan={selectedPlan} // Pass the plan *in*
-          onGoBack={() => setSelectedPlan(null)} // Pass a function to go *back*
-        />
-        
-      )}
-    </div>
+          ) : (
+
+            // 3. IF Plan Selected -> SHOW CHECKOUT
+            <Checkout 
+              plan={selectedPlan} 
+              onGoBack={() => setSelectedPlan(null)} 
+            />
+            
+          )
+        )}
+      </div>
+    </Elements>
   );
 }
 
