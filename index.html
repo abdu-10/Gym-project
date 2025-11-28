@@ -2,11 +2,24 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    
+    <!-- 1. The Standard Favicon (Browser Tabs) -->
+    <!-- Browsers will auto-resize this large image perfectly -->
+    <link rel="icon" type="image/png" href="/vite.png" />
+
+    <!-- 2. Apple / iOS Home Screen -->
+    <!-- iPhones ignore the manifest, so this line is mandatory -->
+    <link rel="apple-touch-icon" href="/vite.png" />
+
+    <!-- 3. PWA Manifest (Android) -->
+    <!-- This file (manifest.webmanifest) tells Android which sizes to use -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link href="/src/index.css" rel="stylesheet">
-    <title>gym-project</title>
+    <title>FitElite Access</title>
   </head>
+
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
