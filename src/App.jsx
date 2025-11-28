@@ -14,6 +14,7 @@ import Checkout from './components/Checkout';
 import Login from './components/Login'; 
 import MemberDashboard from './components/MemberDashboard';
 import StaffScanner from './components/StaffScanner';
+import InstallPrompt from './components/InstallPrompt';
 
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
@@ -31,28 +32,38 @@ function App() {
   const [viewDashboard, setViewDashboard] = useState(false);
   const [user, setUser] = useState(null); 
 
-  // --- NEW: Check Session Cookie on Load ---
-  // This replaces the old localStorage check.
-  // We ask the server "Who am I?" using the httpOnly cookie.
+  // --- NEW: Centralized Logout Function ---
+  // We need this because Admins log out from the Scanner, Members from Navbar
+  const handleLogout = () => {
+    fetch('http://localhost:3000/logout', { method: 'DELETE', credentials: 'include' })
+      .then(() => {
+        setUser(null);
+        setViewDashboard(false);
+        setViewScanner(false);
+        setSelectedPlan(null);
+      });
+  };
+
   useEffect(() => {
     fetch('http://localhost:3000/me', { 
-      credentials: 'include' // <--- CRITICAL: Sends the cookie to the server
+      credentials: 'include' 
     })
     .then(r => {
       if (r.ok) return r.json();
       throw new Error('Not logged in');
     })
     .then(data => {
-      setUser(data.user); // If the cookie is valid, log them in!
+      setUser(data.user);
     })
     .catch(() => {
-      setUser(null); // If no cookie or invalid, stay logged out
+      setUser(null); 
     });
   }, []);
 
   const handleLogin = (userData) => {
     setUser(userData);
     setShowLogin(false);
+    // If it's a member, show dashboard. If Admin, the check below handles it.
     setViewDashboard(true);
   };
 
@@ -94,6 +105,8 @@ function App() {
     <Elements stripe={stripePromise}>
       <div className='min-h-screen flex flex-col bg-gray-50'>
 
+        <InstallPrompt /> {/* PWA Install Prompt Component */}
+
         {showLogin && (
           <Login 
             onLogin={handleLogin} 
@@ -101,37 +114,39 @@ function App() {
           />
         )}
 
-        {/* If staff scanner view is active show it */}
-        {viewScanner ? (
-          <StaffScanner onGoHome={() => setViewScanner(false)} />
+        {/* --- ROUTING LOGIC --- */}
+        {/* PRIORITY 1: If Manual Scanner is ON -OR- User is ADMIN */}
+        {viewScanner || (user && user.role === 'admin') ? (
+          
+          <StaffScanner onGoHome={() => {
+             // Smart Exit: If Admin, Logout. If Manual View, just close.
+             if (user && user.role === 'admin') {
+                 handleLogout();
+             } else {
+                 setViewScanner(false);
+             }
+          }} />
+
         ) : (
-          /* 1. IF Dashboard is active & User is logged in -> SHOW DASHBOARD */
+          /* PRIORITY 2: If Dashboard is active & User is logged in -> SHOW DASHBOARD */
           viewDashboard && user ? (
 
             <MemberDashboard 
                user={user} 
+               // Note: Members just close dashboard to see site, not logout
                onGoHome={() => setViewDashboard(false)} 
             />
 
           ) : !selectedPlan ? (
 
-            // 2. IF No Plan Selected -> SHOW HOME PAGE
+            // PRIORITY 3: If No Plan Selected -> SHOW HOME PAGE
             <>
               <Navbar 
                 activeSection={activeSection} 
                 setActiveSection={setActiveSection} 
                 user={user}
                 onLoginClick={() => setShowLogin(true)}
-                
-                // --- UPDATED LOGOUT: Tell server to delete cookie ---
-                onLogout={() => { 
-                  fetch('http://localhost:3000/logout', { method: 'DELETE', credentials: 'include' })
-                  .then(() => {
-                    setUser(null);
-                    setViewDashboard(false);
-                  });
-                }}
-                
+                onLogout={handleLogout} // Use the new function here
                 onDashboardClick={() => setViewDashboard(true)}
               />
               <main>
@@ -150,7 +165,7 @@ function App() {
 
           ) : (
 
-            // 3. IF Plan Selected -> SHOW CHECKOUT
+            // PRIORITY 4: If Plan Selected -> SHOW CHECKOUT
             <Checkout 
               plan={selectedPlan} 
               onGoBack={() => setSelectedPlan(null)} 
