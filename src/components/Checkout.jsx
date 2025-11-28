@@ -1,15 +1,7 @@
 import React, { useState } from 'react';
+import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
-// --- NEW STRIPE IMPORTS ---
-import { 
-  CardElement,      // This is the special, secure Stripe input
-  useStripe,        // This is the hook to use Stripe (e.g., create a token)
-  useElements       // This is the hook to get the <CardElement> data
-} from '@stripe/react-stripe-js';
-// --- END NEW STRIPE IMPORTS ---
-
-
-// --- SVG Icons ---
+// --- ICONS ---
 const LockIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-gray-400">
     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
@@ -17,7 +9,34 @@ const LockIcon = () => (
   </svg>
 );
 
-// We keep CreditCardIcon for the M-Pesa/PayPal tabs
+const ChipIcon = () => (
+  <svg width="40" height="30" viewBox="0 0 45 35" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-90 shadow-sm">
+    <rect width="45" height="35" rx="6" fill="#fbbf24"/>
+    <path d="M0 11H11V24H0" stroke="#b45309" strokeWidth="1.5"/>
+    <path d="M34 11H45V24H34" stroke="#b45309" strokeWidth="1.5"/>
+    <path d="M11 0V35" stroke="#b45309" strokeWidth="1.5"/>
+    <path d="M34 0V35" stroke="#b45309" strokeWidth="1.5"/>
+    <rect x="16" y="9" width="13" height="17" rx="3" stroke="#b45309" strokeWidth="1.5"/>
+  </svg>
+);
+
+const ContactlessIcon = () => (
+  <svg className="h-8 w-8 text-white opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 9.75h.008v.008h-.008v-.008zm1.5 0h.008v.008h-.008v-.008zm1.5 0h.008v.008h-.008v-.008zm-3 3h.008v.008h-.008v-.008zm1.5 0h.008v.008h-.008v-.008zm1.5 0h.008v.008h-.008v-.008z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5a6 6 0 11-12 0 6 6 0 0112 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+
+const PayPalIcon = () => (
+  <img src="https://www.nopcommerce.com/images/thumbs/0015909_paypal-standard.png" alt="PayPal" className="h-6 w-auto rounded-sm" />
+);
+
+const MpesaIcon = () => (
+  <img src="https://upload.wikimedia.org/wikipedia/commons/0/0b/M-PESA.png" alt="M-Pesa" className="h-6 w-auto rounded-sm" />
+);
+
 const CreditCardIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-gray-400">
     <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
@@ -31,53 +50,59 @@ const CheckIcon = () => (
   </svg>
 );
 
-// --- Your Image Icons ---
-const PayPalIcon = () => (
-  <img 
-    src="https://www.nopcommerce.com/images/thumbs/0015909_paypal-standard.png" 
-    alt="PayPal" 
-    className="h-6 w-auto rounded-sm" 
-  />
+const AlertIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-800 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+    </svg>
 );
-
-const MpesaIcon = () => (
-  <img 
-    src="https://upload.wikimedia.org/wikipedia/commons/0/0b/M-PESA.png" 
-    alt="M-Pesa" 
-    className="h-6 w-auto rounded-sm" 
-  />
-);
-// --- End of Icons ---
-
 
 function Checkout({ plan, onGoBack }) {
-  // --- NEW: Initialize Stripe Hooks ---
   const stripe = useStripe();
   const elements = useElements();
-  // --- END NEW STRIPE HOOKS ---
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [apiError, setApiError] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('card'); 
 
-  // --- UPDATED: 'card', 'expiry', 'cvc' are GONE
   const [formState, setFormState] = useState({
-    name: '',            // For Account
-    email: '',           // For Account
-    password: '',        // For Account
-    confirmPassword: '', // For Account
-    nameOnCard: '',      // For Card Payment (for Stripe)
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    profilePhoto: null,
+    nameOnCard: '',
     mpesaPhone: '', 
   });
+
+  // --- STYLE HELPER: UPDATED FOR GOLD ELITE CARD ---
+  const getCardStyle = (planName) => {
+    // ELITE: Rich Gold Gradient + Gold Shadow
+    if (planName === 'Elite') {
+        return 'bg-gradient-to-br from-yellow-700 via-yellow-600 to-amber-800 border-yellow-500 shadow-2xl shadow-yellow-600/30';
+    }
+    // PREMIUM: Red
+    if (planName === 'Premium') {
+        return 'bg-gradient-to-br from-red-700 via-red-600 to-red-900 border-red-500 shadow-2xl';
+    }
+    // STANDARD: Blue
+    return 'bg-gradient-to-br from-blue-700 via-blue-600 to-blue-900 border-blue-500 shadow-2xl';
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormState(prevState => ({ ...prevState, [name]: value }));
   };
 
-  
-  // --- THIS IS THE FULLY UPDATED SUBMIT HANDLER ---
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setFormState(prevState => ({ 
+        ...prevState, 
+        profilePhoto: e.target.files[0] 
+      }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -89,75 +114,56 @@ function Checkout({ plan, onGoBack }) {
     setIsProcessing(true);
     setApiError(null);
 
-    // Use a try/catch block to handle all errors
     try {
-      
-      let stripeTokenId = null; // This will hold our safe token
+      let stripeTokenId = null;
 
-      // --- 1. STRIPE TOKENIZATION STEP ---
       if (paymentMethod === 'card') {
-        if (!stripe || !elements) {
-          throw new Error("Stripe.js has not loaded yet. Please try again.");
-        }
+        if (!stripe || !elements) throw new Error("Stripe not loaded");
         const cardElement = elements.getElement(CardElement);
-
         const { error: tokenError, token } = await stripe.createToken(cardElement, {
           name: formState.nameOnCard,
         });
-
-        if (tokenError) {
-          throw new Error(tokenError.message);
-        }
+        if (tokenError) throw new Error(tokenError.message);
         stripeTokenId = token.id;
       }
+
+      const formData = new FormData();
+      formData.append('registration[plan]', plan.name);
+      formData.append('registration[account][name]', formState.name);
+      formData.append('registration[account][email]', formState.email);
+      formData.append('registration[account][password]', formState.password);
+      formData.append('registration[account][password_confirmation]', formState.confirmPassword);
       
-      // (If method is PayPal or M-Pesa, we skip the token step)
+      if (formState.profilePhoto) {
+        formData.append('registration[account][profile_photo]', formState.profilePhoto);
+      }
 
-      // --- 2. FORMAT DATA FOR RAILS ---
-      const postData = {
-        registration: { 
-          plan: plan.name,
-          account: {
-            name: formState.name,
-            email: formState.email,
-            password: formState.password,
-            password_confirmation: formState.confirmPassword,
-          },
-          payment: {
-            method: paymentMethod,
-            nameOnCard: formState.nameOnCard,
-            mpesaPhone: formState.mpesaPhone,
-            stripe_token: stripeTokenId, // <-- HERE IS THE TOKEN
-          }
-        }
-      };
+      formData.append('registration[payment][method]', paymentMethod);
+      formData.append('registration[payment][nameOnCard]', formState.nameOnCard);
+      formData.append('registration[payment][mpesaPhone]', formState.mpesaPhone);
+      
+      if (stripeTokenId) {
+        formData.append('registration[payment][stripe_token]', stripeTokenId);
+      }
 
-      // --- 3. SEND DATA TO *OUR* RAILS SERVER ---
       const response = await fetch('http://localhost:3000/registrations', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         credentials: 'include',
-        body: JSON.stringify(postData),
+        body: formData, 
       });
 
       const data = await response.json();
 
-      // --- 4. ROBUST ERROR HANDLING ---
       if (!response.ok) {
-        // This will now handle "Email taken" OR "Stripe token missing"
         const errorMessage = data.errors ? data.errors.join(', ') : data.error;
         throw new Error(errorMessage || 'An unknown error occurred.');
       }
 
-      // --- 5. FINAL SUCCESS! ---
       console.log("SUCCESS:", data);
       setIsProcessing(false);
       setIsComplete(true); 
 
     } catch (error) {
-      // --- 6. FAILURE! (From Stripe OR Rails) ---
       console.error("Error:", error);
       setIsProcessing(false);
       setApiError(error.message);
@@ -173,8 +179,6 @@ function Checkout({ plan, onGoBack }) {
     }
   };
 
-
-  // --- View 1: The "Success" Message ---
   if (isComplete) {
     return (
       <div className="flex-1 flex items-center justify-center p-4 bg-white">
@@ -184,10 +188,7 @@ function Checkout({ plan, onGoBack }) {
           <p className="text-lg text-gray-600 mb-8">
             Welcome to the club, {formState.name}! You are now an official <strong>{plan.name}</strong> member.
           </p>
-          <button
-            onClick={onGoBack} 
-            className="w-full bg-red-600 text-white px-6 py-3 rounded-md font-medium hover:bg-red-700 transition duration-300"
-          >
+          <button onClick={onGoBack} className="w-full bg-red-600 text-white px-6 py-3 rounded-md font-medium hover:bg-red-700 transition duration-300">
             Back to Home
           </button>
         </div>
@@ -195,43 +196,21 @@ function Checkout({ plan, onGoBack }) {
     );
   }
 
-  // --- View 2: The Main Checkout Form ---
   return (
     <div className="flex-1 flex flex-col bg-gray-100">
-      
-      {/* This style tag defines the fade-in animation */}
       <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease-out;
-        }
-        /* --- NEW: Style for the Stripe Element --- */
-        .StripeElement {
-          padding: 1rem;
-          border: 1px solid #d1d5db; /* border-gray-300 */
-          border-radius: 0.5rem; /* rounded-lg */
-          background-color: white;
-        }
-        .StripeElement--focus {
-          border-color: #ef4444; /* border-red-500 */
-          box-shadow: 0 0 0 1px #ef4444; /* ring-red-500 */
-        }
-        .StripeElement--invalid {
-          border-color: #ef4444; /* border-red-500 */
-        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+        .StripeElement { padding: 1rem; border: 1px solid #d1d5db; border-radius: 0.5rem; background-color: white; }
+        .StripeElement--focus { border-color: #ef4444; box-shadow: 0 0 0 1px #ef4444; }
+        .StripeElement--invalid { border-color: #ef4444; }
       `}</style>
 
-      {/* --- Minimal Header --- */}
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
-              <span className="text-2xl font-extrabold text-gray-900">
-                FIT<span className="text-red-500">ELITE</span>
-              </span>
+              <span className="text-2xl font-extrabold text-gray-900">FIT<span className="text-red-500">ELITE</span></span>
               <div className="ml-2 w-2 h-2 rounded-full animate-pulse bg-red-600"></div>
             </div>
             <div className="flex items-center text-sm text-gray-600">
@@ -242,126 +221,203 @@ function Checkout({ plan, onGoBack }) {
         </div>
       </header>
 
-      {/* --- Main Content Area (Fixed Scrollbar) --- */}
       <div className="flex-1 flex items-center overflow-auto py-12 lg:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
             
-            {/* --- Column 1: Payment Form --- */}
             <div className="lg:col-span-2">
               <div className="bg-white rounded-xl shadow-lg overflow-hidden h-full flex flex-col">
-                
                 <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
                   <div className="p-8 flex-1">
 
-                    {/* --- ACCOUNT SECTION (Unchanged) --- */}
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6">1. Your Account</h2>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-6">1. Create Your Digital ID</h2>
+                    
+                    {/* --- THE CARD & UPLOAD SECTION --- */}
+                    <div className="mb-10 bg-gray-50 p-6 rounded-xl border border-gray-200">
+                        <div className="flex flex-col md:flex-row gap-8 items-center justify-center md:justify-start">
+                            
+                            {/* --- THE LEGIT CARD PREVIEW (Fixed Width 320px) --- */}
+                            <div className="flex-shrink-0 relative">
+                                {/* This div locks the size to exactly 320px wide */}
+                                <div className={`w-[320px] h-[200px] rounded-xl p-5 relative overflow-hidden transition-all duration-500 shadow-xl ${getCardStyle(plan.name)}`}>
+                                    
+                                    {/* Glossy Overlay/Effects */}
+                                    <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent pointer-events-none"></div>
+                                    <div className="absolute -top-10 -right-10 w-40 h-40 bg-white opacity-10 rounded-full blur-2xl"></div>
+
+                                    <div className="relative z-10 h-full flex flex-col justify-between text-white">
+                                        
+                                        {/* Row 1: Logo & Contactless */}
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h3 className="text-lg font-extrabold tracking-tight italic">
+                                                    FIT<span className="text-red-500">ELITE</span>
+                                                </h3>
+                                                <p className="text-[8px] opacity-80 uppercase tracking-[0.25em] mt-0.5 ml-0.5">
+                                                    {plan.name} PASS
+                                                </p>
+                                            </div>
+                                            <ContactlessIcon />
+                                        </div>
+
+                                        {/* Row 2: Chip */}
+                                        <div className="flex items-center pl-1">
+                                            <ChipIcon />
+                                        </div>
+
+                                        {/* Row 3: Details & Photo */}
+                                        <div className="flex justify-between items-end">
+                                            <div className="space-y-0.5">
+                                                <p className="text-[7px] uppercase tracking-widest opacity-60">Cardholder</p>
+                                                <p className="font-medium text-xs tracking-wide shadow-black drop-shadow-md uppercase truncate max-w-[120px]">
+                                                    {formState.name || "YOUR NAME"}
+                                                </p>
+                                                <p className="text-[9px] font-mono opacity-80 tracking-wider">
+                                                    xxxx-xxxx-xxxx-0001
+                                                </p>
+                                            </div>
+                                            
+                                            {/* Photo Box: Portrait Aspect Ratio */}
+                                            <div className="bg-white/10 backdrop-blur-sm border border-white/20 p-0.5 rounded-md h-[70px] w-[55px] flex items-center justify-center overflow-hidden">
+                                                {formState.profilePhoto ? (
+                                                    <img 
+                                                        src={URL.createObjectURL(formState.profilePhoto)} 
+                                                        alt="ID Face" 
+                                                        className="h-full w-full object-cover rounded-[3px]" 
+                                                    />
+                                                ) : (
+                                                    <div className="h-full w-full bg-gray-300/50 flex flex-col items-center justify-center rounded-[3px]">
+                                                        <svg className="h-6 w-6 text-white/70" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-center text-[10px] text-gray-400 mt-2 uppercase tracking-wide">Digital Access Card Preview</p>
+                            </div>
+
+                            {/* --- THE INPUTS & SERIOUS WARNING --- */}
+                            <div className="flex-1 w-full max-w-xs">
+                                
+                                {/* --- SERIOUS WARNING BOX --- 
+                                  Red background, bold text, "NO REFUNDS" warning.
+                                */}
+                                <div className="bg-red-50 border-l-4 border-red-600 p-4 mb-5 rounded-r-md">
+                                    <div className="flex gap-3">
+                                        <AlertIcon />
+                                        <div>
+                                            <h4 className="text-xs font-bold text-red-800 uppercase mb-1">
+                                                Facial Recognition Required
+                                            </h4>
+                                            <p className="text-[11px] text-red-700 leading-tight">
+                                                You must upload a <strong>real, clear selfie</strong>. Our system uses facial recognition for entry. 
+                                            </p>
+                                            <p className="text-[11px] font-bold text-red-800 mt-2 underline">
+                                                Fake photos or avatars will result in denied entry and NO REFUNDS.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                                            Take Selfie / Upload Photo
+                                        </label>
+                                        
+                                        {/* capture="user" forces the selfie camera on mobile.
+                                          accept="image/*" ensures only images are selected.
+                                        */}
+                                        <input 
+                                            type="file" 
+                                            accept="image/*"
+                                            capture="user" 
+                                            onChange={handleFileChange}
+                                            className="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-red-600 file:text-white hover:file:bg-red-700 cursor-pointer border border-gray-300 rounded-md bg-white"
+                                        />
+                                        <p className="text-[10px] text-gray-400 mt-1">
+                                            *Mobile: Opens front camera automatically.
+                                        </p>
+                                    </div>
+                                    <div>
+                                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                                            Name on Card
+                                         </label>
+                                         <input type="text" name="name" required value={formState.name} onChange={handleChange} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-red-500 focus:border-red-500" placeholder="e.g. John Doe"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {/* ------------------------------------------- */}
+
+                    <h2 className="text-2xl font-bold text-gray-900 mb-6">2. Account Credentials</h2>
                     <div className="space-y-5">
                       <div>
-                        <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                        <input type="text" name="name" id="name" required value={formState.name} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500" placeholder="John M. Doe"/>
-                      </div>
-                      <div>
-                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                        <input type="email" name="email" id="email" required value={formState.email} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500" placeholder="you@example.com"/>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                        <input type="email" name="email" required value={formState.email} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500" placeholder="you@example.com"/>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                          <input type="password" name="password" id="password" required value={formState.password} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500" placeholder="Create a password"/>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                          <input type="password" name="password" required value={formState.password} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500"/>
                         </div>
                         <div>
-                          <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
-                          <input type="password" name="confirmPassword" id="confirmPassword" required value={formState.confirmPassword} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500" placeholder="Confirm password"/>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+                          <input type="password" name="confirmPassword" required value={formState.confirmPassword} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500"/>
                         </div>
                       </div>
                     </div>
 
-
-                    {/* --- PAYMENT SECTION (Updated) --- */}
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6 mt-10">2. Payment Method</h2>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-6 mt-10">3. Payment Method</h2>
                     
-                    {/* --- Payment Method Tabs (Unchanged) --- */}
                     <div className="grid grid-cols-3 gap-2 mb-6">
                       <button type="button" onClick={() => setPaymentMethod('card')} className={`flex justify-center items-center space-x-2 px-4 py-3 rounded-lg border-2 font-medium ${paymentMethod === 'card' ? 'border-red-600 text-red-600 bg-red-50' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}><CreditCardIcon /><span className="text-sm sm:text-base">Card</span></button>
                       <button type="button" onClick={() => setPaymentMethod('paypal')} className={`flex justify-center items-center space-x-2 px-4 py-3 rounded-lg border-2 font-medium ${paymentMethod === 'paypal' ? 'border-red-600 text-red-600 bg-red-50' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}><PayPalIcon /></button>
                       <button type="button" onClick={() => setPaymentMethod('mpesa')} className={`flex justify-center items-center space-x-2 px-4 py-3 rounded-lg border-2 font-medium ${paymentMethod === 'mpesa' ? 'border-red-600 text-red-600 bg-red-50' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}><MpesaIcon /></button>
                     </div>
                     
-                    {/* --- Conditional Form Content --- */}
-                    
-                    {/* --- Card Form (THIS IS THE BIG CHANGE) --- */}
                     {paymentMethod === 'card' && (
                       <div className="space-y-5 animate-fadeIn">
                         <div>
-                          <label htmlFor="nameOnCard" className="block text-sm font-medium text-gray-700 mb-1">Name on Card</label>
-                          <input type="text" name="nameOnCard" id="nameOnCard" required={paymentMethod === 'card'} value={formState.nameOnCard} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500" placeholder="John M. Doe"/>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Name on Card</label>
+                          <input type="text" name="nameOnCard" required={paymentMethod === 'card'} value={formState.nameOnCard} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500" placeholder="John M. Doe"/>
                         </div>
-                        
-                        {/* --- THIS IS THE NEW SECURE ELEMENT --- */}
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Card Details
-                          </label>
-                          {/* This is a single component for Card Number, Expiry, and CVC */}
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Card Details</label>
                           <CardElement 
-                            className="StripeElement" // We use our custom styles from the <style> tag
+                            className="StripeElement" 
                             options={{
                               style: {
-                                base: {
-                                  fontSize: '16px',
-                                  color: '#111827',
-                                  '::placeholder': {
-                                    color: '#9ca3af',
-                                  },
-                                },
-                                invalid: {
-                                  color: '#ef4444',
-                                }
+                                base: { fontSize: '16px', color: '#111827', '::placeholder': { color: '#9ca3af' } },
+                                invalid: { color: '#ef4444' }
                               },
                               hidePostalCode: true
                             }}
                           />
                         </div>
-                        {/* --- THE OLD DUMB INPUTS (card, expiry, cvc) ARE GONE --- */}
                       </div>
                     )}
                     
-                    {/* --- PayPal Form (Unchanged) --- */}
                     {paymentMethod === 'paypal' && (
                       <div className="animate-fadeIn text-center py-8">
                         <div className="flex justify-center"><PayPalIcon /></div>
-                        <p className="text-gray-600 mt-4">
-                          After clicking "Pay with PayPal", you will be redirected to PayPal to complete your purchase securely.
-                        </p>
+                        <p className="text-gray-600 mt-4">Redirecting to PayPal...</p>
                       </div>
                     )}
                     
-                    {/* --- M-Pesa Form (Unchanged) --- */}
                     {paymentMethod === 'mpesa' && (
                       <div className="animate-fadeIn py-8">
-                        <p className="text-gray-600 text-center mb-4">
-                          You will receive a pop-up on your phone to complete the payment.
-                        </p>
                         <div>
-                          <label htmlFor="mpesaPhone" className="block text-sm font-medium text-gray-700 mb-1">M-Pesa Phone Number</label>
-                          <input
-                            type="tel"
-                            name="mpesaPhone"
-                            id="mpesaPhone"
-                            required={paymentMethod === 'mpesa'}
-                            value={formState.mpesaPhone}
-                            onChange={handleChange}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500"
-                            placeholder="e.g. 0712345678"
-                          />
+                          <label className="block text-sm font-medium text-gray-700 mb-1">M-Pesa Phone Number</label>
+                          <input type="tel" name="mpesaPhone" required={paymentMethod === 'mpesa'} value={formState.mpesaPhone} onChange={handleChange} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500" placeholder="e.g. 0712345678"/>
                         </div>
                       </div>
                     )}
                     
                   </div>
                 
-                  {/* --- The footer is INSIDE the form --- */}
                   <div className="bg-gray-50 px-8 py-6 border-t border-gray-200">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center text-sm text-gray-600">
@@ -370,26 +426,18 @@ function Checkout({ plan, onGoBack }) {
                       </div>
                       <button
                         type="submit"
-                        // --- UPDATED: Disable if Stripe hasn't loaded
                         disabled={isProcessing || (paymentMethod === 'card' && (!stripe || !elements))}
                         className="inline-flex justify-center px-6 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed"
                       >
                         {isProcessing ? 'Processing...' : getButtonText()}
                       </button>
                     </div>
-                    
-                    {/* --- This is where ALL errors will appear --- */}
-                    {apiError && (
-                      <div className="mt-4 text-center text-sm text-red-600">
-                        {apiError}
-                      </div>
-                    )}
+                    {apiError && <div className="mt-4 text-center text-sm text-red-600">{apiError}</div>}
                   </div>
                 </form>
               </div>
             </div>
 
-            {/* --- Column 2: Order Summary (Unchanged) --- */}
             <div className="lg:col-span-1">
               <div className="bg-white rounded-xl shadow-lg p-8 h-full flex flex-col">
                 <h3 className="text-xl font-bold text-gray-900 mb-6">Order Summary</h3>
@@ -398,8 +446,7 @@ function Checkout({ plan, onGoBack }) {
                   <div className="flex justify-between items-baseline"><span className="text-gray-600">Price:</span><span className="font-semibold text-gray-900 text-xl">{plan.price}<span className="text-sm font-normal text-gray-600">/mo</span></span></div>
                   <div className="pt-4 border-t border-gray-200"><div className="flex justify-between items-baseline"><span className="text-lg font-bold text-gray-900">Total Due Today</span><span className="text-2xl font-bold text-red-600">{plan.price}</span></div></div>
                   <div className="pt-6"><h4 className="text-sm font-semibold text-gray-800 mb-3">Plan Features:</h4><ul className="space-y-2">{plan.features.map((feature, idx) => ( <li key={idx} className="flex items-start text-sm"><svg className="h-4 w-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg><span className="text-gray-600">{feature}</span></li> ))}</ul></div>
-                  <div className="pt-6 mt-auto">
-                    <a href='#pricing' onClick={onGoBack} className="w-full block text-center px-4 py-2 rounded-md font-medium border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white transition-all duration-300">&larr; Change Plan</a></div>
+                  <div className="pt-6 mt-auto"><a href='#pricing' onClick={onGoBack} className="w-full block text-center px-4 py-2 rounded-md font-medium border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white transition-all duration-300">&larr; Change Plan</a></div>
                 </div>
               </div>
             </div>
@@ -407,11 +454,8 @@ function Checkout({ plan, onGoBack }) {
           </div>
         </div>
       </div>
-
     </div>
   );
 }
 
-// NOTE: This default export is here for you to test.
-// We will remove it when we combine it into App.jsx
 export default Checkout;
