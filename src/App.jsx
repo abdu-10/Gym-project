@@ -14,6 +14,7 @@ import Checkout from './components/Checkout';
 import Login from './components/Login'; 
 import MemberDashboard from './components/MemberDashboard';
 import StaffScanner from './components/StaffScanner';
+import AdminDashboard from './components/AdminDashboard';
 import InstallPrompt from './components/InstallPrompt';
 
 import { loadStripe } from '@stripe/stripe-js';
@@ -30,23 +31,23 @@ const SECTIONS = ["home", "features", "about", "classes", "pricing", "trainers",
 
 function App() {
   const [activeSection, setActiveSection] = useState('home');
-  const [selectedPlan, setSelectedPlan] = useState(null);
-  const [viewScanner, setViewScanner] = useState(false);
-  const [showLogin, setShowLogin] = useState(false);
-  const [viewDashboard, setViewDashboard] = useState(false);
-  const [user, setUser] = useState(null); 
+    const [selectedPlan, setSelectedPlan] = useState(null);
+    const [viewScanner, setViewScanner] = useState(false);
+    const [showLogin, setShowLogin] = useState(false);
+    const [viewDashboard, setViewDashboard] = useState(false);
+    const [adminViewScanner, setAdminViewScanner] = useState(false);
+    const [user, setUser] = useState(null);
 
-  // --- NEW: Centralized Logout Function ---
-  // We need this because Admins log out from the Scanner, Members from Navbar
-  const handleLogout = () => {
-    fetch('http://localhost:3000/logout', { method: 'DELETE', credentials: 'include' })
-      .then(() => {
-        setUser(null);
-        setViewDashboard(false);
-        setViewScanner(false);
-        setSelectedPlan(null);
-      });
-  };
+    const handleLogout = () => {
+      fetch('http://localhost:3000/logout', { method: 'DELETE', credentials: 'include' })
+        .then(() => {
+          setUser(null);
+          setViewDashboard(false);
+          setViewScanner(false);
+          setAdminViewScanner(false);
+          setSelectedPlan(null);
+        });
+    };
 
   useEffect(() => {
     fetch('http://localhost:3000/me', { 
@@ -119,20 +120,21 @@ function App() {
           />
         )}
 
-        {/* --- ROUTING LOGIC --- */}
-        {/* PRIORITY 1: If Manual Scanner is ON -OR- User is ADMIN */}
-        {viewScanner || (user && user.role === 'admin') ? (
-          
-          <StaffScanner onGoHome={() => {
-             // Smart Exit: If Admin, Logout. If Manual View, just close.
-             if (user && user.role === 'admin') {
-                 handleLogout();
-             } else {
-                 setViewScanner(false);
-             }
-          }} />
-
-        ) : (
+                {/* --- ROUTING LOGIC --- */}
+                {/* PRIORITY 1: If Admin is viewing scanner from dashboard */}
+                {adminViewScanner && user && user.role === 'admin' ? (
+                  <StaffScanner onGoHome={() => setAdminViewScanner(false)} />
+                ) : user && user.role === 'admin' ? (
+                  /* PRIORITY 2: If User is ADMIN -> SHOW ADMIN DASHBOARD */
+                  <AdminDashboard 
+                    user={user} 
+                    onLogout={handleLogout}
+                    onOpenScanner={() => setAdminViewScanner(true)}
+                  />
+                ) : viewScanner ? (
+                  /* PRIORITY 3: If Manual Scanner is ON (from footer) */
+                  <StaffScanner onGoHome={() => setViewScanner(false)} />
+                ) : (
           /* PRIORITY 2: If Dashboard is active & User is logged in -> SHOW DASHBOARD */
           viewDashboard && user ? (
 
