@@ -18,9 +18,13 @@ import InstallPrompt from './components/InstallPrompt';
 
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
+import { PayPalScriptProvider } from '@paypal/react-paypal-js';
 
 const STRIPE_PUBLISHABLE_KEY = "pk_test_51SToBtAWbNWeBtveVOfzLPPnsKwEjU5ydkF0a2hp5tB4xJdGqiC3WZICbuIzMKtbCxEnlDjkU5MI3Lc0XY5HHObD00hREI3a2i";
 const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY);
+
+// PayPal Client ID - Replace with your actual PayPal sandbox/production client ID
+const PAYPAL_CLIENT_ID = "AZDxjDScFpQtjWTOUtWKbyN_bDt4OgqaF4eYXlewfBP4-8aqX3PiV8e1GWU6liB2CUXlkA59kJXE7M6R";
 
 const SECTIONS = ["home", "features", "about", "classes", "pricing", "trainers", "testimonials", "contact"];
 
@@ -102,6 +106,7 @@ function App() {
   }, [selectedPlan]); 
  
   return (
+    <PayPalScriptProvider options={{ clientId: PAYPAL_CLIENT_ID, currency: "USD" }}>
     <Elements stripe={stripePromise}>
       <div className='min-h-screen flex flex-col bg-gray-50'>
 
@@ -175,6 +180,7 @@ function App() {
         )}
       </div>
     </Elements>
+    </PayPalScriptProvider>
   );
 }
 
