@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { PayPalButtons } from '@paypal/react-paypal-js';
 
 // --- ICONS ---
 const LockIcon = () => (
@@ -177,6 +178,88 @@ function Checkout({ plan, onGoBack }) {
       case 'mpesa': return 'Join with M-Pesa';
       default: return `Pay ${plan.price} & Join`;
     }
+  };
+
+  // --- PAYPAL: Create Order ---
+  const createPayPalOrder = (data, actions) => {
+    // Extract numeric price from plan.price (e.g., "$49" -> "49.00")
+    const priceValue = plan.price.replace(/[^0-9.]/g, '');
+    
+    return actions.order.create({
+      purchase_units: [
+        {
+          description: `FITELITE - ${plan.name} Membership`,
+          amount: {
+            currency_code: "USD",
+            value: priceValue,
+          },
+        },
+      ],
+      application_context: {
+        shipping_preference: "NO_SHIPPING",
+      },
+    });
+  };
+
+  // --- PAYPAL: On Approve (User approved payment) ---
+  const onPayPalApprove = async (data) => {
+    // Validate form fields before processing
+    if (!formState.name || !formState.email || !formState.password || !formState.confirmPassword) {
+      setApiError("Please fill in all account fields before completing payment.");
+      return;
+    }
+    
+    if (formState.password !== formState.confirmPassword) {
+      setApiError("Passwords do not match!");
+      return;
+    }
+
+    setIsProcessing(true);
+    setApiError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('registration[plan]', plan.name);
+      formData.append('registration[account][name]', formState.name);
+      formData.append('registration[account][email]', formState.email);
+      formData.append('registration[account][password]', formState.password);
+      formData.append('registration[account][password_confirmation]', formState.confirmPassword);
+      
+      if (formState.profilePhoto) {
+        formData.append('registration[account][profile_photo]', formState.profilePhoto);
+      }
+
+      formData.append('registration[payment][method]', 'paypal');
+      formData.append('registration[payment][paypal_order_id]', data.orderID);
+
+      const response = await fetch('http://localhost:3000/registrations', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = responseData.errors ? responseData.errors.join(', ') : responseData.error;
+        throw new Error(errorMessage || 'An unknown error occurred.');
+      }
+
+      console.log("SUCCESS:", responseData);
+      setIsProcessing(false);
+      setIsComplete(true);
+
+    } catch (error) {
+      console.error("Error:", error);
+      setIsProcessing(false);
+      setApiError(error.message);
+    }
+  };
+
+  // --- PAYPAL: On Error ---
+  const onPayPalError = (err) => {
+    console.error("PayPal Error:", err);
+    setApiError("PayPal encountered an error. Please try again.");
   };
 
   if (isComplete) {
@@ -401,9 +484,33 @@ function Checkout({ plan, onGoBack }) {
                     )}
                     
                     {paymentMethod === 'paypal' && (
-                      <div className="animate-fadeIn text-center py-8">
-                        <div className="flex justify-center"><PayPalIcon /></div>
-                        <p className="text-gray-600 mt-4">Redirecting to PayPal...</p>
+                      <div className="animate-fadeIn py-6">
+                        <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+                          <div className="flex items-center justify-center mb-4">
+                            <PayPalIcon />
+                            <span className="ml-2 text-gray-700 font-medium">Pay securely with PayPal</span>
+                          </div>
+                          <p className="text-sm text-gray-500 text-center mb-4">
+                            Complete your account details above, then click the PayPal button to finish your purchase.
+                          </p>
+                          <PayPalButtons
+                            style={{
+                              layout: "vertical",
+                              color: "blue",
+                              shape: "rect",
+                              label: "pay",
+                            }}
+                            createOrder={createPayPalOrder}
+                            onApprove={onPayPalApprove}
+                            onError={onPayPalError}
+                            disabled={isProcessing}
+                          />
+                          {isProcessing && (
+                            <div className="mt-4 text-center">
+                              <p className="text-gray-600">Processing your payment...</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                     
