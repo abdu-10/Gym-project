@@ -1,26 +1,23 @@
-import React, { useEffect } from "react";
-import { useState } from "react";
+import React, { useEffect, useState } from "react";
 
-function Hero() {
-    const [isVisible, setIsVisible] = useState(false);
-    const [currentBgIndex, setCurrentBgIndex] = useState(0);
-    useEffect(() => {
-        setIsVisible(true);
-      }, []);
-
+// Move heroBackgrounds outside the component to prevent recreation on every render
+// This fixes the useEffect dependency issue that caused unnecessary interval recreation
 const heroBackgrounds = [
     "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=1170",
     "https://images.unsplash.com/photo-1637666062717-1c6bcfa4a4df?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTA0fHxneW18ZW58MHx8MHx8fDA%3D&auto=format&fit=crop&q=60&w=600",
     "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Z3ltfGVufDB8fDB8fHww&auto=format&fit=crop&q=60&w=600",
-  ];
+];
+
+function Hero() {
+    const [currentBgIndex, setCurrentBgIndex] = useState(0);
 
     useEffect(() => {
         const interval = setInterval(() => {
-setCurrentBgIndex((prevIndex) => (prevIndex + 1) % heroBackgrounds.length);
+            setCurrentBgIndex((prevIndex) => (prevIndex + 1) % heroBackgrounds.length);
         }, 7000);
 
         return () => clearInterval(interval);
-    }, [heroBackgrounds.length]);
+    }, []); // Empty dependency array since heroBackgrounds is now a stable reference
     
   return (
     <div id="home" className="relative h-screen overflow-hidden md:h-100vh">
@@ -83,16 +80,15 @@ setCurrentBgIndex((prevIndex) => (prevIndex + 1) % heroBackgrounds.length);
                 </div>
                 <div className="mt-16 flex items-center space-x-8">
                   <div className="flex -space-x-3">
-                    {[1, 2, 3, 4, 5].map((i) => {
-                        
-                       return <div className="w-10 h-10 rounded-full border-2 border-white overflow-hidden ring-2 ring-red-500/20 shadow-lg">
-                      <img
-                        src={`https://randomuser.me/api/portraits/${i % 2 === 0 ? "women" : "men"}/${i + 20}.jpg`}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    </div>;
-                    })}
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} className="w-10 h-10 rounded-full border-2 border-white overflow-hidden ring-2 ring-red-500/20 shadow-lg">
+                        <img
+                          src={`https://randomuser.me/api/portraits/${i % 2 === 0 ? "women" : "men"}/${i + 20}.jpg`}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ))}
                   </div>
                   <div className="text-white font-bold text-lg">
                     1,000+ Members
