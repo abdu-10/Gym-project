@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom'; // Added Import
 
 // --- SVG Icons ---
 const LockIcon = () => (
@@ -119,6 +120,16 @@ function Login({ onLogin, onClose }) {
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 transition-colors"
                   placeholder="••••••••"
                 />
+              </div>
+              
+              {/* --- ADDED: Forgot Password Link --- */}
+              <div className="flex justify-end mt-2">
+                <Link 
+                  to="/forgot-password" 
+                  className="text-xs font-medium text-red-600 hover:text-red-500 hover:underline transition-colors"
+                >
+                  Forgot your password?
+                </Link>
               </div>
             </div>
 
