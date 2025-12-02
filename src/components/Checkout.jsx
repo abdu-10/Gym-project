@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { PayPalButtons } from '@paypal/react-paypal-js';
 
@@ -60,6 +61,7 @@ const AlertIcon = () => (
 function Checkout({ plan, onGoBack, onLogin }) {
   const stripe = useStripe();
   const elements = useElements();
+  const navigate = useNavigate();
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
@@ -282,7 +284,7 @@ function Checkout({ plan, onGoBack, onLogin }) {
             Welcome to the club, {formState.name}! You are now an official <strong>{plan.name}</strong> member.
           </p>
           <button 
-            onClick={() => window.location.href = '/dashboard'} 
+            onClick={() => navigate('/dashboard')} 
             className="w-full bg-red-600 text-white px-6 py-3 rounded-md font-medium hover:bg-red-700 transition duration-300"
           >
             Go to Dashboard
