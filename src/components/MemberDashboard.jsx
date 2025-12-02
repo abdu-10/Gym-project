@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import QRCode from "react-qr-code"; 
 
 // --- ICONS ---
@@ -36,6 +36,17 @@ const CloseIcon = () => (
 
 function MemberDashboard({ user, onGoHome }) {
   const [showScanner, setShowScanner] = useState(false);
+  const [dashboardData, setDashboardData] = useState(null);
+
+  // --- FETCH DATA ---
+  useEffect(() => {
+    fetch('http://localhost:3000/member_dashboard', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        setDashboardData(data);
+      })
+      .catch(err => console.error("Failed to load dashboard", err));
+  }, []);
 
   if (!user) return null;
 
@@ -55,7 +66,10 @@ function MemberDashboard({ user, onGoHome }) {
   };
 
   const memberID = generateMemberID(user.id);
-  const qrValue = user.id.toString();
+  
+  // --- UPDATED SECURE LOGIC ---
+  // Use the secure token from dashboard data, fallback to ID only if loading
+  const qrValue = dashboardData?.user?.qr_code_value || user.id.toString();
 
   // --- 3. MEMBERSHIP STATUS LOGIC ---
   const calculateStatus = () => {
@@ -104,7 +118,7 @@ function MemberDashboard({ user, onGoHome }) {
 
       <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* --- LEFT COLUMN: Profile Info (Exact same as you pasted) --- */}
+        {/* --- LEFT COLUMN: Profile Info --- */}
         <div className="lg:col-span-5 space-y-6">
           
           {/* Welcome Card */}
@@ -163,16 +177,21 @@ function MemberDashboard({ user, onGoHome }) {
                       {membershipData.renewalDateString}
                     </span>
                 </div>
-                <div className="flex justify-between py-2">
+                <div className="flex justify-between py-2 border-b border-gray-50">
                     <span className="text-gray-500">Home Gym</span>
                     <span className="font-medium text-gray-900">FitElite HQ</span>
+                </div>
+                {/* TOTAL VISITS */}
+                <div className="flex justify-between py-2">
+                    <span className="text-gray-500">Total Visits</span>
+                    <span className="font-bold text-gray-900 bg-gray-100 px-2 rounded">{dashboardData?.stats?.total_visits || 0}</span>
                 </div>
             </div>
           </div>
 
         </div>
 
-        {/* --- RIGHT COLUMN: Digital ID Card (Updated for Tap Interaction) --- */}
+        {/* --- RIGHT COLUMN: Digital ID Card --- */}
         <div className="lg:col-span-7">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 h-full flex flex-col items-center justify-center">
             
@@ -200,7 +219,7 @@ function MemberDashboard({ user, onGoHome }) {
                       FIT<span className="text-red-500">ELITE</span>
                     </h3>
                     <p className="text-[10px] opacity-80 uppercase tracking-[0.2em] mt-1">
-                       {user.plan} Member
+                        {user.plan} Member
                     </p>
                   </div>
                   <ContactlessIcon />
@@ -242,7 +261,7 @@ function MemberDashboard({ user, onGoHome }) {
               </div>
             </div>
 
-            {/* --- BOTTOM TEXT (Replaced Static QR) --- */}
+            {/* --- BOTTOM TEXT --- */}
             <div className="mt-10 text-center">
                  {membershipData.isActive ? (
                     <button 
@@ -263,6 +282,94 @@ function MemberDashboard({ user, onGoHome }) {
           </div>
         </div>
 
+      </div>
+
+      {/* --- BILLING HISTORY (Existing) --- */}
+      <div className="max-w-5xl mx-auto mt-8">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Billing History
+            </h3>
+            <span className="text-xs font-medium text-gray-500 bg-gray-200/50 px-2 py-1 rounded">Secure</span>
+          </div>
+          
+          <div className="divide-y divide-gray-50">
+            {dashboardData?.billing_history && dashboardData.billing_history.length > 0 ? (
+              dashboardData.billing_history.map((payment) => (
+                <div key={payment.id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center border ${payment.status === 'succeeded' ? 'bg-green-50 border-green-100 text-green-600' : 'bg-red-50 border-red-100 text-red-600'}`}>
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">{payment.description}</p>
+                      <p className="text-xs text-gray-500">{payment.date} • {payment.method}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-gray-900">{payment.amount}</p>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${payment.status === 'succeeded' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {payment.status}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="px-6 py-12 text-center text-gray-500 text-sm">
+                No payment history found.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* --- ADDED: RECENT ACCESS LOG --- */}
+      <div className="max-w-5xl mx-auto mt-8 mb-12">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Recent Access Log
+            </h3>
+            <span className="text-xs font-medium text-gray-500 bg-gray-200/50 px-2 py-1 rounded">Live</span>
+          </div>
+          
+          <div className="divide-y divide-gray-50">
+            {dashboardData?.recent_activity && dashboardData.recent_activity.length > 0 ? (
+              dashboardData.recent_activity.map((activity, index) => (
+                <div key={index} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center border bg-blue-50 border-blue-100 text-blue-600">
+                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                       </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">Gym Entry</p>
+                      <p className="text-xs text-gray-500">Main Entrance</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-gray-900">{activity.time}</p>
+                    <p className="text-xs text-gray-500">{activity.date}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="px-6 py-12 text-center text-gray-500 text-sm">
+                No recent visits recorded.
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* --- SCANNER MODAL (ANIMATED) --- */}
