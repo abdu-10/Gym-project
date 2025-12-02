@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 
 // Simple Icons for the Navbar
 const DashboardIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
 );
 
 const LogoutIcon = () => (
@@ -137,23 +137,21 @@ function Navbar({ activeSection, setActiveSection, user, onLoginClick, onLogout,
       </div>
 
       {/* --- MOBILE MENU (FIXED) --- */}
-      {/* Changed max-h-[600px] to max-h-[90vh] and added overflow-y-auto so you can scroll to see the logout button on small screens */}
-      <div className={`xl:hidden transition-all duration-300 ease-in-out ${isOpen ? "max-h-[90vh] opacity-100 overflow-y-auto" : "max-h-0 opacity-0 overflow-hidden"} shadow-xl bg-white/95 backdrop-blur-md`}>
-        {/* Added pb-10 to ensure the bottom button isn't cut off */}
-        <div className="px-4 pt-2 pb-10 space-y-1 border-t border-gray-100">
-          
-          {navLinks.map((link) => (
-            <a
-              href={link.href}
-              key={link.id}
-              onClick={() => setIsOpen(false)} // Close menu on click
-              className={
-                "block px-4 py-3 rounded-lg text-base font-medium transition-all duration-300 text-gray-600 hover:text-red-600 hover:bg-gray-50"
-              }
-            >
-              {link.name}
-            </a>
-          ))}
+      <div className={`xl:hidden transition-all duration-300 ease-in-out ${isOpen ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0 overflow-hidden"} overflow-hidden shadow-xl`}>
+        <div className="px-4 pt-2 pb-6 space-y-1 bg-white/95 backdrop-blur-md shadow-lg border-t border-gray-100">
+         
+         {navLinks.map((link) => (
+           <a
+             href={link.href}
+             key={link.id}
+             onClick={() => setIsOpen(false)} // Close menu on click
+             className={
+               "block px-4 py-3 rounded-lg text-base font-medium transition-all duration-300 text-gray-600 hover:text-red-600 hover:bg-gray-50"
+             }
+           >
+             {link.name}
+           </a>
+         ))}
 
           <div className="pt-4 mt-4 border-t border-gray-200">
             {/* --- MOBILE USER LOGIC --- */}
@@ -161,9 +159,8 @@ function Navbar({ activeSection, setActiveSection, user, onLoginClick, onLogout,
                 <div className="space-y-3">
                     {/* Mobile User Profile Header */}
                     <div className="flex items-center px-4 mb-4">
-                        {/* Only try to charAt if name exists, just a safety check */}
                         <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 font-bold text-lg mr-3">
-                            {user.name ? user.name.charAt(0).toUpperCase() : "U"}
+                            {user.name.charAt(0).toUpperCase()}
                         </div>
                         <div>
                             <p className="text-sm text-gray-500">Signed in as</p>
