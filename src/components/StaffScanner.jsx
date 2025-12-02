@@ -1,16 +1,13 @@
 import React, { useState } from 'react';
-// 1. IMPORT THE MODERN PACKAGE
 import { Scanner } from '@yudiel/react-qr-scanner';
 
 function StaffScanner({ onGoHome }) {
-  const [inputMode, setInputMode] = useState("camera"); // 'camera' or 'manual'
-  const [userIdInput, setUserIdInput] = useState("");
   const [scanResult, setScanResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  // This key forces the camera to hard-reset every time we scan again
+  const [scannerKey, setScannerKey] = useState(0); 
   
-  // --- HANDLE THE SCAN ---
   const handleQrScan = (detectedCodes) => {
-    // The library returns an array of detected codes
     if (detectedCodes && detectedCodes.length > 0 && !isLoading && !scanResult) {
         const rawValue = detectedCodes[0].rawValue;
         if (rawValue) verifyUser(rawValue);
@@ -18,17 +15,17 @@ function StaffScanner({ onGoHome }) {
   };
 
   const handleQrError = (err) => {
-    console.error("Scanner Error:", err);
+    // console.error(err); 
   };
 
-  // --- VERIFICATION API CALL ---
-  const verifyUser = async (id) => {
+  const verifyUser = async (token) => {
     setIsLoading(true);
     try {
       const response = await fetch('http://localhost:3000/access/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: id }),
+        credentials: 'include',
+        body: JSON.stringify({ user_id: token }), 
       });
       const data = await response.json();
       setScanResult(data);
@@ -39,17 +36,11 @@ function StaffScanner({ onGoHome }) {
     }
   };
 
-  // Manual Submit Handler
-  const handleManualSubmit = (e) => {
-    e.preventDefault();
-    if(userIdInput) verifyUser(userIdInput);
-  };
-
-  // Reset System
   const resetScanner = () => {
       setScanResult(null);
-      setUserIdInput("");
       setIsLoading(false);
+      // Increment key to force a full camera unmount/remount
+      setScannerKey(prev => prev + 1);
   };
 
   return (
@@ -83,92 +74,51 @@ function StaffScanner({ onGoHome }) {
         
         {/* --- THE LIVE SCANNER CONTAINER --- */}
         <div className="relative mb-8 group">
-            {/* Glow Effect */}
-            <div className={`absolute -inset-1 bg-gradient-to-r from-red-600 to-red-900 rounded-2xl blur opacity-20 transition duration-1000 ${inputMode === 'camera' ? 'group-hover:opacity-40' : 'opacity-0'}`}></div>
+            <div className="absolute -inset-1 bg-gradient-to-r from-red-600 to-red-900 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
             
             <div className="relative w-80 h-80 bg-black rounded-2xl border-2 border-gray-800 flex items-center justify-center overflow-hidden shadow-2xl">
                 
-                {/* 1. CAMERA FEED (USING MODERN PACKAGE) */}
-                {inputMode === 'camera' && (
+                {!scanResult ? (
                     <div className="absolute inset-0 w-full h-full bg-black">
+                        {/* KEY ADDED HERE: Forces React to re-build the camera component */}
                         <Scanner
+                            key={scannerKey}
                             onScan={handleQrScan}
                             onError={handleQrError}
-                            // Clean UI: No audio, no default outline (we use our own)
-                            components={{
-                                audio: false,
-                                onOff: false,
-                                torch: false,
-                                finder: false, 
-                            }}
-                            styles={{
-                                container: { width: '100%', height: '100%' },
-                                video: { width: '100%', height: '100%', objectFit: 'cover' }
-                            }}
+                            components={{ audio: false, onOff: false, torch: false, finder: false }}
+                            styles={{ container: { width: '100%', height: '100%' } }}
                         />
                         
-                        {/* Target Overlay (The "Cool" visual part stays on top) */}
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                             <div className="w-48 h-48 border-2 border-red-500/50 rounded-lg relative">
                                 <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-red-500"></div>
                                 <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-red-500"></div>
                                 <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-red-500"></div>
                                 <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-red-500"></div>
-                                {/* Scanning Laser */}
                                 <div className="absolute left-0 right-0 h-0.5 bg-red-500 shadow-[0_0_10px_#ef4444] animate-scanline opacity-70"></div>
                             </div>
                         </div>
                     </div>
-                )}
-
-                {/* 2. MANUAL MODE */}
-                {inputMode === 'manual' && (
-                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-30 flex items-center justify-center">
-                         <div className="text-center">
-                            <svg className="w-12 h-12 text-gray-700 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
-                            <p className="text-gray-500 text-xs font-mono">CAMERA PAUSED</p>
-                         </div>
+                ) : (
+                    <div className="absolute inset-0 bg-gray-900/50 flex items-center justify-center">
+                        <p className="text-xs text-gray-500 font-mono">SENSOR STANDBY</p>
                     </div>
                 )}
                 
-                {/* Status Text Overlay */}
                 <div className="absolute bottom-4 left-0 right-0 text-center z-10">
                      <p className="text-white/70 text-[10px] font-mono bg-black/50 inline-block px-3 py-1 rounded-full backdrop-blur-sm">
-                        {isLoading ? "VERIFYING IDENTITY..." : (inputMode === 'camera' ? "SCANNING TARGET..." : "MANUAL OVERRIDE")}
+                        {isLoading ? "VERIFYING CREDENTIALS..." : (scanResult ? "PROCESSING COMPLETE" : "SCANNING FOR SECURE TOKEN...")}
                      </p>
                 </div>
             </div>
         </div>
-
-        {/* --- MANUAL INPUT TOGGLE --- */}
-        {inputMode === 'manual' && (
-             <form onSubmit={handleManualSubmit} className="flex gap-2 animate-fadeIn mb-4">
-                <input 
-                    type="text" 
-                    value={userIdInput}
-                    onChange={(e) => setUserIdInput(e.target.value)}
-                    className="bg-gray-900 border border-gray-700 text-white font-mono text-sm px-4 py-2 rounded focus:outline-none focus:border-red-600"
-                    placeholder="Enter ID #"
-                    autoFocus
-                />
-                <button type="submit" className="bg-red-600 text-white px-4 py-2 rounded text-xs font-bold hover:bg-red-700">SUBMIT</button>
-             </form>
-        )}
-
-        <button 
-            onClick={() => setInputMode(inputMode === 'camera' ? 'manual' : 'camera')}
-            className="text-xs text-gray-600 hover:text-gray-400 font-mono underline decoration-dotted underline-offset-4"
-        >
-            {inputMode === 'camera' ? "Switch to Manual Entry" : "Switch to Camera Mode"}
-        </button>
-
 
         {/* --- RESULTS DISPLAY OVERLAY --- */}
         {scanResult && (
           <div className="absolute top-0 left-0 right-0 bottom-0 bg-black/95 backdrop-blur-xl z-50 flex items-center justify-center animate-fadeIn p-4">
              <div className="w-full max-w-sm relative">
                 
-                {/* CLOSE BUTTON */}
+                {/* Top Close Button (Backup) */}
                 <button 
                     onClick={resetScanner}
                     className="absolute -top-12 right-0 text-white hover:text-red-500 transition flex items-center gap-2"
@@ -177,9 +127,10 @@ function StaffScanner({ onGoHome }) {
                     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 </button>
 
-                {scanResult.status === 'granted' ? (
+                {/* --- ACCESS GRANTED --- */}
+                {scanResult.status === 'allowed' ? (
                     <div className="text-center">
-                        <div className="relative mb-10 inline-block">
+                        <div className="relative mb-8 inline-block">
                              <div className="w-56 h-56 rounded-full border-[8px] border-green-500 p-1 bg-black animate-popIn shadow-[0_0_60px_#22c55e]">
                                 {scanResult.user.photo ? (
                                     <img src={scanResult.user.photo} className="w-full h-full rounded-full object-cover" alt="User" />
@@ -195,16 +146,30 @@ function StaffScanner({ onGoHome }) {
                         </div>
                         
                         <h2 className="text-5xl font-black text-white italic tracking-tighter mb-2">GRANTED</h2>
-                        <p className="text-green-500 font-mono text-sm tracking-widest uppercase mb-8">Subject: {scanResult.user.name}</p>
+                        <p className="text-green-500 font-mono text-sm tracking-widest uppercase mb-6">Subject: {scanResult.user.name}</p>
 
-                        <div className="flex justify-center gap-4">
-                            <div className="bg-gray-900 px-6 py-3 rounded-xl border border-gray-800">
+                        <div className="flex justify-center gap-3 mb-8">
+                            <div className="bg-gray-900 px-4 py-3 rounded-xl border border-gray-800 w-1/2">
                                 <span className="text-gray-500 text-[10px] uppercase block mb-1">Membership</span>
-                                <span className="text-white font-bold uppercase text-lg">{scanResult.user.plan}</span>
+                                <span className="text-white font-bold uppercase text-sm">{scanResult.user.plan}</span>
+                            </div>
+                            <div className="bg-gray-900 px-4 py-3 rounded-xl border border-gray-800 w-1/2">
+                                <span className="text-gray-500 text-[10px] uppercase block mb-1">Total Visits</span>
+                                <span className="text-white font-bold uppercase text-sm">{scanResult.user.visits || 0}</span>
                             </div>
                         </div>
+
+                        {/* BIG NEXT SCAN BUTTON */}
+                        <button 
+                            onClick={resetScanner} 
+                            className="w-full bg-white text-black font-black py-4 rounded-xl hover:bg-gray-200 transition shadow-[0_0_20px_rgba(255,255,255,0.3)] uppercase tracking-widest text-sm flex items-center justify-center gap-2"
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /></svg>
+                            Scan Next Member
+                        </button>
                     </div>
                 ) : (
+                    /* --- ACCESS DENIED --- */
                     <div className="text-center">
                         <div className="w-40 h-40 mx-auto rounded-full border-[6px] border-red-600 flex items-center justify-center mb-8 bg-red-900/20 shadow-[0_0_50px_rgba(220,38,38,0.6)] animate-popIn">
                             <svg className="w-20 h-20 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -212,14 +177,22 @@ function StaffScanner({ onGoHome }) {
                             </svg>
                         </div>
                         <h2 className="text-5xl font-black text-white tracking-tighter mb-4">DENIED</h2>
-                        <div className="bg-red-950/50 border border-red-900 p-6 rounded-xl inline-block">
+                        <div className="bg-red-950/50 border border-red-900 p-6 rounded-xl inline-block mb-8">
                              <p className="text-red-500 font-mono text-sm tracking-widest uppercase">
-                                REASON: {scanResult.message}
+                                REASON: {scanResult.message || scanResult.error}
                              </p>
                         </div>
                         {scanResult.user && (
-                            <p className="text-gray-500 mt-8 font-mono text-sm uppercase">Identity: {scanResult.user.name}</p>
+                            <p className="text-gray-500 mb-8 font-mono text-sm uppercase">Identity: {scanResult.user.name}</p>
                         )}
+
+                        {/* BIG RETRY BUTTON */}
+                        <button 
+                            onClick={resetScanner} 
+                            className="w-full bg-red-600 text-white font-black py-4 rounded-xl hover:bg-red-500 transition shadow-[0_0_20px_rgba(220,38,38,0.4)] uppercase tracking-widest text-sm"
+                        >
+                            Return to Scanner
+                        </button>
                     </div>
                 )}
              </div>
