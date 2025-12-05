@@ -16,7 +16,7 @@ import Login from './components/Login';
 
 const SECTIONS = ["home", "features", "about", "classes", "pricing", "trainers", "testimonials", "contact"];
 
-function Home({ user, onLogout }) {
+function Home({ user, onLogout, onLogin }) {
   const [activeSection, setActiveSection] = useState('home');
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
@@ -94,7 +94,8 @@ function Home({ user, onLogout }) {
       ) : (
         <Checkout 
           plan={selectedPlan} 
-          onGoBack={() => setSelectedPlan(null)} 
+          onGoBack={() => setSelectedPlan(null)}
+          onLogin={onLogin}
         />
       )}
     </>

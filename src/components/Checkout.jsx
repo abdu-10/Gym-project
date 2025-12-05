@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { PayPalButtons } from '@paypal/react-paypal-js';
 
@@ -57,9 +58,10 @@ const AlertIcon = () => (
     </svg>
 );
 
-function Checkout({ plan, onGoBack }) {
+function Checkout({ plan, onGoBack, onLogin }) {
   const stripe = useStripe();
   const elements = useElements();
+  const navigate = useNavigate();
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
@@ -162,7 +164,12 @@ function Checkout({ plan, onGoBack }) {
 
       console.log("SUCCESS:", data);
       setIsProcessing(false);
-      setIsComplete(true); 
+      setIsComplete(true);
+      
+      // Auto-login: If the backend returns user data, log the user in
+      if (onLogin && data.user) {
+        onLogin(data.user);
+      } 
 
     } catch (error) {
       console.error("Error:", error);
@@ -248,6 +255,11 @@ function Checkout({ plan, onGoBack }) {
       console.log("SUCCESS:", responseData);
       setIsProcessing(false);
       setIsComplete(true);
+      
+      // Auto-login: If the backend returns user data, log the user in
+      if (onLogin && responseData.user) {
+        onLogin(responseData.user);
+      }
 
     } catch (error) {
       console.error("Error:", error);
@@ -271,8 +283,11 @@ function Checkout({ plan, onGoBack }) {
           <p className="text-lg text-gray-600 mb-8">
             Welcome to the club, {formState.name}! You are now an official <strong>{plan.name}</strong> member.
           </p>
-          <button onClick={onGoBack} className="w-full bg-red-600 text-white px-6 py-3 rounded-md font-medium hover:bg-red-700 transition duration-300">
-            Back to Home
+          <button 
+            onClick={() => navigate('/dashboard')} 
+            className="w-full bg-red-600 text-white px-6 py-3 rounded-md font-medium hover:bg-red-700 transition duration-300"
+          >
+            Go to Dashboard
           </button>
         </div>
       </div>

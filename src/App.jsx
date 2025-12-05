@@ -128,7 +128,7 @@ function MainApp() {
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
           
-          <Route path="/" element={<Home user={user} onLogout={handleLogout} />} />
+          <Route path="/" element={<Home user={user} onLogout={handleLogout} onLogin={setUser} />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           
