@@ -1,6 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
+import TrainerBookingModal from "./TrainerBookingModal";
 
 function Trainers() {
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedTrainer, setSelectedTrainer] = useState(null);
+
     const trainers = [
         {
             name: "Hamudi Omar",
@@ -70,7 +74,7 @@ function Trainers() {
               </h3>
               <div className="text-red-600 font-medium mb-2">{trainer.role}</div>
               <p className="text-gray-600 mb-4">{trainer.bio}</p>
-              <div className="flex justify-center space-x-4">
+              <div className="flex justify-center space-x-4 mb-4">
                 <a
                   href=""
                   className="text-gray-400 hover:text-red-600 transition duration-300"
@@ -118,19 +122,33 @@ function Trainers() {
                   </svg>
                 </a>
               </div>
+              <div className="text-center">
+                <button 
+                  onClick={() => {
+                    setSelectedTrainer(trainer);
+                    setIsModalOpen(true);
+                  }}
+                  className="inline-block border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white px-6 py-3 rounded-md font-medium transition duration-300"
+                >
+                  Book a Training session
+                </button>
+              </div>
             </div>
-          </div>    
+          </div>
               );
             })}
         </div>
-
-            <div className="text-center mt-12">
-                <a href='' className="inline-block border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white px-6 py-3 rounded-md font-medium transition duration-300"> Book a Training session</a>
-
-
-            </div>
-
       </div>
+
+      {/* Booking Modal */}
+      <TrainerBookingModal 
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedTrainer(null);
+        }}
+        trainer={selectedTrainer}
+      />
     </div>
   );
 }
