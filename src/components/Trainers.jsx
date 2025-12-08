@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import TrainerBookingModal from "./TrainerBookingModal";
 
-function Trainers() {
+function Trainers({ user }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedTrainer, setSelectedTrainer] = useState(null);
 
@@ -148,6 +148,7 @@ function Trainers() {
           setSelectedTrainer(null);
         }}
         trainer={selectedTrainer}
+        currentUser={user}
       />
     </div>
   );
