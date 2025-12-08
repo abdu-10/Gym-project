@@ -1,197 +1,160 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-function TrainerBookingModal({ isOpen, onClose, trainer }) {
-  if (!isOpen || !trainer) return null;
-
-  // State for animation control
+function TrainerBookingModal({ isOpen, onClose, trainer, currentUser }) {
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState([]);
+  const [successMessage, setSuccessMessage] = useState(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const modalRef = useRef(null);
 
-  // Handle mounting/unmounting for fade-in/out effect
   useEffect(() => {
     if (isOpen) {
-      // Start animation right after mount
+      setLoading(false);
+      setErrors([]);
+      setSuccessMessage(null);
       requestAnimationFrame(() => setIsAnimating(true));
-      
+
       const handleEscape = (e) => {
-        if (e.key === 'Escape') {
-          // Trigger smooth close
-          setIsAnimating(false);
-          setTimeout(onClose, 300);
-        }
+        if (e.key === 'Escape') handleCloseModal();
       };
       document.addEventListener('keydown', handleEscape);
-      return () => {
-        document.removeEventListener('keydown', handleEscape);
-      };
+      return () => document.removeEventListener('keydown', handleEscape);
     } else {
       setIsAnimating(false);
     }
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    console.log("Booking request submitted for:", trainer.name);
-    
-    console.log('--- Submission Data ---');
-    new FormData(e.target).forEach((value, key) => {
-        console.log(`${key}: ${value}`);
-    });
-    
-    // Smooth close after successful submission simulation
-    setTimeout(() => {
-        setIsAnimating(false);
-        setTimeout(onClose, 300); 
-    }, 500);
+  if (!isOpen || !trainer) return null;
+
+  const handleCloseModal = () => {
+    setIsAnimating(false);
+    setTimeout(onClose, 300);
   };
 
-  // Determine the final scale based on the animation state
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrors([]);
+    setSuccessMessage(null);
+
+    const formData = new FormData(e.target);
+
+    const submissionData = {
+      trainer_booking: {
+        trainer_name: trainer.name,
+        user_name: formData.get('user_name'),
+        user_email: formData.get('user_email'),
+        user_phone: formData.get('user_phone'),
+        preferred_date: formData.get('preferred_date'),
+        goals_message: formData.get('goals_message'),
+      },
+    };
+
+    try {
+      const response = await fetch('http://localhost:3000/trainer_bookings', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(submissionData),
+        credentials: 'include'
+      });
+
+      const data = await response.json().catch(() => ({ errors: ['Server returned a non-JSON response.'] }));
+
+      if (response.ok) {
+        setSuccessMessage(`Success! Your session request with ${trainer.name} has been submitted. A confirmation email is on its way.`);
+        setTimeout(handleCloseModal, 3000);
+      } else {
+        setErrors(data.errors || [`Submission failed with status ${response.status}.`]);
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Submission error:', error);
+      setErrors(['Network error or server unreachable.']);
+      setLoading(false);
+    }
+  };
+
   const scaleClass = isAnimating ? 'scale-100 opacity-100' : 'scale-95 opacity-0';
 
   return (
-    // Elite Overlay: Backdrop Blur and Darkened Background
     <div 
       className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-300 backdrop-blur-sm bg-gray-900/80 ${isAnimating ? 'opacity-100' : 'opacity-0'}`}
-      onClick={() => { setIsAnimating(false); setTimeout(onClose, 300); }} // Trigger smooth close on outside click
+      onClick={handleCloseModal}
     >
-      {/* Modal Container: Responsive height (max-h) and internal scroll (overflow-y-auto) */}
       <div 
         ref={modalRef}
         className={`bg-white rounded-xl shadow-2xl w-full max-w-lg p-7 relative transform transition-all duration-300 ease-out border border-red-50 max-h-[90vh] overflow-y-auto ${scaleClass}`}
-        onClick={e => e.stopPropagation()} // Prevents closing when clicking inside the modal
+        onClick={e => e.stopPropagation()}
       >
-        
-        {/* Close button: Sleek and subtle */}
         <button
-          onClick={() => { setIsAnimating(false); setTimeout(onClose, 300); }}
+          onClick={handleCloseModal}
           className="absolute top-3 right-3 text-gray-400 hover:text-red-600 transition p-2 rounded-full hover:bg-red-50"
           aria-label="Close booking modal"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M6 18L18 6M6 6l12 12"
-            />
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
           </svg>
         </button>
 
-        {/* Modal Header content: Trainer profile focus */}
         <div className="text-center mb-6 pt-2">
-          <img
-            src={trainer.image}
-            alt={trainer.name}
-            // Sharp ring effect
-            className="w-20 h-20 rounded-full mx-auto mb-3 object-cover ring-2 ring-red-600 ring-offset-2"
-          />
-          <h3 className="text-2xl font-extrabold text-gray-900 tracking-tight">
-            Book Session with {trainer.name}
-          </h3>
+          <img src={trainer.image || 'https://placehold.co/80x80/9F1239/ffffff?text=PT'} alt={trainer.name} className="w-20 h-20 rounded-full mx-auto mb-3 object-cover ring-2 ring-red-600 ring-offset-2"/>
+          <h3 className="text-2xl font-extrabold text-gray-900 tracking-tight">Book Session with {trainer.name}</h3>
           <p className="text-red-600 font-bold text-sm uppercase mt-0.5">{trainer.role}</p>
         </div>
 
-        {/* Booking form: Sleek inputs, tight spacing */}
+        {loading && <div className="flex items-center justify-center p-3 mb-4 text-sm font-semibold text-red-700 bg-red-100 rounded-lg">Sending booking request...</div>}
+        {errors.length > 0 && <div className="p-4 mb-4 text-sm text-red-800 bg-red-50 rounded-lg" role="alert"><ul>{errors.map((e, i) => <li key={i}>{e}</li>)}</ul></div>}
+        {successMessage && <div className="p-4 mb-4 text-sm text-green-800 bg-green-50 rounded-lg font-bold" role="alert">{successMessage}</div>}
+
         <form className="space-y-4" onSubmit={handleSubmit}>
-          
-          {/* Your Name */}
-          <div>
-            <label htmlFor="name" className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">
-              Your Name
-            </label>
-            <input
-              id="name"
-              type="text"
-              name="name"
-              // Refined Input Styling: py-2.5, less aggressive border
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-red-600 focus:border-red-600 transition duration-150 text-sm"
-              placeholder="Full Name"
-              required
-            />
-          </div>
-
-          {/* Email */}
-          <div>
-            <label htmlFor="email" className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">
-              Email Address
-            </label>
-            <input
-              id="email"
-              type="email"
-              name="email"
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-red-600 focus:border-red-600 transition duration-150 text-sm"
-              placeholder="you@example.com"
-              required
-            />
-          </div>
-
-          {/* Phone and Date (side-by-side) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <fieldset disabled={loading || successMessage} className="space-y-4">
+            {/* Name */}
             <div>
-              <label htmlFor="phone" className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">
-                Phone
-              </label>
-              <input
-                id="phone"
-                type="tel"
-                name="phone"
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-red-600 focus:border-red-600 transition duration-150 text-sm"
-                placeholder="(555) 555-5555"
+              <label htmlFor="user_name" className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Your Name</label>
+              <input 
+                id="user_name"
+                name="user_name"
+                type="text"
+                defaultValue={currentUser?.name || ''}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
                 required
               />
             </div>
 
+            {/* Email */}
             <div>
-              <label htmlFor="date" className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">
-                Preferred Date
-              </label>
-              <input
-                id="date"
-                type="date"
-                name="date"
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-red-600 focus:border-red-600 transition duration-150 text-sm"
+              <label htmlFor="user_email" className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Email Address</label>
+              <input 
+                id="user_email"
+                name="user_email"
+                type="email"
+                defaultValue={currentUser?.email || ''}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
                 required
               />
             </div>
-          </div>
 
-          {/* Message */}
-          <div>
-            <label htmlFor="message" className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">
-              Goals & Requirements
-            </label>
-            <textarea
-              id="message"
-              name="message"
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-1 focus:ring-red-600 focus:border-red-600 transition duration-150 text-sm"
-              rows="3"
-              placeholder="Tell us about your fitness goals..."
-            ></textarea>
-          </div>
+            {/* Phone & Date */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="user_phone" className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Phone</label>
+                <input id="user_phone" name="user_phone" type="tel" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" required/>
+              </div>
+              <div>
+                <label htmlFor="preferred_date" className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Preferred Date</label>
+                <input id="preferred_date" name="preferred_date" type="date" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" required/>
+              </div>
+            </div>
 
-          {/* Buttons: Sleeker, faster hover effect */}
+            <div>
+              <label htmlFor="goals_message" className="block text-xs font-bold text-gray-600 mb-1 uppercase tracking-wider">Goals & Requirements</label>
+              <textarea id="goals_message" name="goals_message" rows="3" className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" placeholder="Tell us about your fitness goals..."></textarea>
+            </div>
+          </fieldset>
+
           <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={() => { setIsAnimating(false); setTimeout(onClose, 300); }}
-              // Secondary Button: Ghost effect with border
-              className="flex-1 px-4 py-3 text-sm font-bold border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition duration-200 shadow-sm"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              // Primary Button: Reduced vertical padding (py-3), bold shadow, aggressive hover
-              className="flex-1 px-4 py-3 text-sm font-bold bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-200 shadow-lg shadow-red-500/50 hover:shadow-red-500/70"
-            >
-              Confirm Booking
-            </button>
+            <button type="button" onClick={handleCloseModal} disabled={loading} className="flex-1 px-4 py-3 text-sm font-bold border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50">Cancel</button>
+            <button type="submit" disabled={loading || successMessage} className="flex-1 px-4 py-3 text-sm font-bold bg-red-600 text-white rounded-lg hover:bg-red-700">{loading ? 'Submitting...' : 'Confirm Booking'}</button>
           </div>
         </form>
       </div>
