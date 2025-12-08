@@ -84,7 +84,7 @@ function Home({ user, onLogout, onLogin }) {
             <Classes user={user} // <-- PASS USER PROP
                onLoginClick={() => setShowLogin(true)}/>
             <Pricing onSelectPlan={setSelectedPlan} />
-            <Trainers />
+            <Trainers user={user} />
             <Testimonials />
             <Contact />
           </main>
