@@ -1,5 +1,6 @@
 import React, { useEffect, useState, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import Lottie from 'lottie-react';
 
 // --- COMPONENT IMPORTS ---
 import Home from './Home.jsx'; 
@@ -7,6 +8,7 @@ import InstallPrompt from './components/InstallPrompt.jsx';
 import Login from './components/Login.jsx'; 
 import ForgotPassword from './components/ForgotPassword.jsx';
 import ResetPassword from './components/ResetPassword.jsx';
+import animationData from './assets/animation.json';
 
 // --- LAZY LOADS ---
 const AdminDashboard = lazy(() => import('./components/AdminDashboard.jsx'));
@@ -35,22 +37,14 @@ const LoadingFallback = () => (
     {/* Main Content */}
     <div className="relative z-10 flex flex-col items-center px-4">
       
-      {/* Simple Icon */}
-      <div className="relative mb-8">
-        <div className="w-24 h-24 flex items-center justify-center">
-          <svg 
-            xmlns="http://www.w3.org/2000/svg" 
-            viewBox="0 0 24 24" 
-            fill="none"
-            className="w-20 h-20 text-red-500"
-          >
-            <rect x="2" y="8" width="3" height="8" fill="currentColor" className="animate-lift-left" />
-            <rect x="5" y="7" width="1.5" height="10" fill="currentColor" opacity="0.7" />
-            <rect x="6.5" y="11" width="11" height="2" fill="currentColor" />
-            <rect x="17.5" y="7" width="1.5" height="10" fill="currentColor" opacity="0.7" />
-            <rect x="19" y="8" width="3" height="8" fill="currentColor" className="animate-lift-right" />
-          </svg>
-        </div>
+      {/* Lottie Animation */}
+      <div className="relative mb-8 w-32 h-32">
+        <Lottie 
+          animationData={animationData} 
+          loop={true}
+          autoplay={true}
+          style={{ width: '100%', height: '100%' }}
+        />
       </div>
 
       {/* FITELITE Branding */}
@@ -77,23 +71,6 @@ const LoadingFallback = () => (
 
     {/* Simple Animations */}
     <style>{`
-      @keyframes lift-left {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-4px); }
-      }
-      .animate-lift-left {
-        animation: lift-left 1.5s ease-in-out infinite;
-      }
-      
-      @keyframes lift-right {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-4px); }
-      }
-      .animate-lift-right {
-        animation: lift-right 1.5s ease-in-out infinite;
-        animation-delay: 0.75s;
-      }
-      
       @keyframes progress-simple {
         0% { transform: translateX(-100%); }
         100% { transform: translateX(100%); }
