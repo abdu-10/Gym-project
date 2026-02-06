@@ -122,13 +122,14 @@ function MemberDashboard({ user, onGoHome }) {
         <div className="lg:col-span-5 space-y-6">
           
           {/* Welcome Card */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="h-24 bg-gradient-to-r from-gray-900 to-gray-800 relative">
-                 <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-white opacity-10 rounded-full"></div>
+          <div className="group bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden hover:shadow-2xl transition-all duration-300">
+            <div className="h-28 bg-gradient-to-r from-gray-900 via-red-900 to-gray-900 relative overflow-hidden">
+                 <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjAzIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30"></div>
+                 <div className="absolute -bottom-6 -right-6 w-32 h-32 bg-red-500 opacity-10 rounded-full blur-2xl"></div>
             </div>
             <div className="px-6 relative">
-                <div className="-mt-12 mb-4">
-                    <div className="h-24 w-24 rounded-full bg-white p-1 shadow-md inline-block relative z-10">
+                <div className="-mt-14 mb-4">
+                    <div className="h-28 w-28 rounded-full bg-white p-1.5 shadow-2xl inline-block relative z-10 ring-4 ring-gray-100 group-hover:ring-red-100 transition-all">
                         {user.photo_url ? (
                             <img 
                                 src={user.photo_url} 
@@ -136,23 +137,29 @@ function MemberDashboard({ user, onGoHome }) {
                                 className="h-full w-full rounded-full object-cover"
                             />
                         ) : (
-                            <div className="h-full w-full rounded-full bg-red-600 flex items-center justify-center text-white text-3xl font-bold">
+                            <div className="h-full w-full rounded-full bg-gradient-to-br from-red-600 to-orange-600 flex items-center justify-center text-white text-4xl font-black shadow-inner">
                                 {user.name.charAt(0).toUpperCase()}
                             </div>
                         )}
                     </div>
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900">{user.name}</h2>
-                <p className="text-sm text-gray-500 mb-6">{user.email}</p>
+                <h2 className="text-3xl font-black text-gray-900">{user.name}</h2>
+                <p className="text-sm text-gray-500 mb-6 flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  {user.email}
+                </p>
                 
                 <div className="grid grid-cols-2 gap-4 border-t border-gray-100 py-6">
-                    <div>
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Membership</p>
-                        <p className="text-lg font-bold text-gray-900">{user.plan}</p>
+                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-4 rounded-xl">
+                        <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Membership</p>
+                        <p className="text-xl font-black text-gray-900">{user.plan}</p>
                     </div>
-                    <div>
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Status</p>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${membershipData.statusColor}`}>
+                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-4 rounded-xl">
+                        <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Status</p>
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-black uppercase ${membershipData.statusColor} shadow-sm`}>
+                          <span className={`w-2 h-2 rounded-full mr-2 ${membershipData.isActive ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
                           {membershipData.statusText}
                         </span>
                     </div>
@@ -161,30 +168,32 @@ function MemberDashboard({ user, onGoHome }) {
           </div>
 
           {/* Stats Card */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Account Details</h3>
-                <CalendarIcon />
-            </div>
-            <div className="space-y-3 text-sm">
-                <div className="flex justify-between py-2 border-b border-gray-50">
-                    <span className="text-gray-500">Member Since</span>
-                    <span className="font-medium text-gray-900">{membershipData.joinDateString}</span>
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6 hover:shadow-2xl transition-shadow">
+            <div className="flex items-center justify-between mb-6">
+                <h3 className="text-base font-black text-gray-900 uppercase tracking-wider">Account Details</h3>
+                <div className="bg-gray-100 p-2 rounded-lg">
+                  <CalendarIcon />
                 </div>
-                <div className="flex justify-between py-2 border-b border-gray-50">
-                    <span className="text-gray-500">Renewal Date</span>
-                    <span className={`font-medium ${membershipData.isActive ? "text-gray-900" : "text-red-600 font-bold"}`}>
+            </div>
+            <div className="space-y-1 text-sm">
+                <div className="flex justify-between py-3 px-4 bg-gray-50 rounded-lg mb-2 hover:bg-gray-100 transition-colors">
+                    <span className="text-gray-600 font-semibold">Member Since</span>
+                    <span className="font-bold text-gray-900">{membershipData.joinDateString}</span>
+                </div>
+                <div className="flex justify-between py-3 px-4 bg-gray-50 rounded-lg mb-2 hover:bg-gray-100 transition-colors">
+                    <span className="text-gray-600 font-semibold">Renewal Date</span>
+                    <span className={`font-bold ${membershipData.isActive ? "text-gray-900" : "text-red-600"}`}>
                       {membershipData.renewalDateString}
                     </span>
                 </div>
-                <div className="flex justify-between py-2 border-b border-gray-50">
-                    <span className="text-gray-500">Home Gym</span>
-                    <span className="font-medium text-gray-900">FitElite HQ</span>
+                <div className="flex justify-between py-3 px-4 bg-gray-50 rounded-lg mb-2 hover:bg-gray-100 transition-colors">
+                    <span className="text-gray-600 font-semibold">Home Gym</span>
+                    <span className="font-bold text-gray-900">FitElite HQ</span>
                 </div>
                 {/* TOTAL VISITS */}
-                <div className="flex justify-between py-2">
-                    <span className="text-gray-500">Total Visits</span>
-                    <span className="font-bold text-gray-900 bg-gray-100 px-2 rounded">{dashboardData?.stats?.total_visits || 0}</span>
+                <div className="flex justify-between py-3 px-4 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg border border-red-100">
+                    <span className="text-red-700 font-bold">Total Visits</span>
+                    <span className="font-black text-gray-900 bg-white px-3 py-1 rounded-lg shadow-sm">{dashboardData?.stats?.total_visits || 0}</span>
                 </div>
             </div>
           </div>
@@ -193,22 +202,31 @@ function MemberDashboard({ user, onGoHome }) {
 
         {/* --- RIGHT COLUMN: Digital ID Card --- */}
         <div className="lg:col-span-7">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 h-full flex flex-col items-center justify-center">
+          <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-200 p-8 h-full flex flex-col items-center justify-center relative overflow-hidden hover:shadow-2xl transition-shadow">
+            {/* Background Decoration */}
+            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iYmxhY2siIHN0cm9rZS1vcGFjaXR5PSIwLjAyIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-50"></div>
             
-            <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900">Digital Access Pass</h2>
-                <p className="text-gray-500 mt-2 text-sm">Tap card to scan for entry.</p>
+            <div className="text-center mb-8 relative z-10">
+                <div className="inline-flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-full mb-3">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                  <span className="text-sm font-black uppercase tracking-wider">Digital Access Pass</span>
+                </div>
+                <h2 className="text-3xl font-black text-gray-900">Your Membership Card</h2>
+                <p className="text-gray-600 mt-2 text-sm font-semibold">🔒 Tap card to scan for entry</p>
             </div>
 
             {/* --- THE CARD (Clickable) --- */}
             <div 
                 onClick={() => setShowScanner(true)}
-                className={`w-full max-w-[400px] aspect-[1.586/1] rounded-2xl p-6 relative overflow-hidden transition-all duration-300 hover:scale-[1.02] cursor-pointer shadow-2xl ${getCardStyle(user.plan)}`}
+                className={`group w-full max-w-[400px] aspect-[1.586/1] rounded-2xl p-6 relative overflow-hidden transition-all duration-500 hover:scale-[1.08] cursor-pointer shadow-2xl hover:shadow-3xl ${getCardStyle(user.plan)} relative z-10`}
             >
               
               {/* Glossy Overlay */}
               <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent pointer-events-none"></div>
-              <div className="absolute -top-24 -right-24 w-64 h-64 bg-white opacity-5 rounded-full blur-3xl"></div>
+              <div className="absolute -top-24 -right-24 w-64 h-64 bg-white opacity-5 rounded-full blur-3xl group-hover:opacity-10 transition-opacity"></div>
+              <div className="absolute inset-0 border-2 border-white/20 rounded-2xl group-hover:border-white/40 transition-all"></div>
 
               <div className="relative z-10 h-full flex flex-col justify-between text-white">
                 
@@ -266,15 +284,19 @@ function MemberDashboard({ user, onGoHome }) {
                  {membershipData.isActive ? (
                     <button 
                         onClick={() => setShowScanner(true)}
-                        className="inline-flex items-center gap-2 px-6 py-2 rounded-full text-sm font-bold bg-gray-900 text-white hover:bg-black transition-colors shadow-lg"
+                        className="group inline-flex items-center gap-3 px-8 py-4 rounded-2xl text-sm font-black bg-gradient-to-r from-gray-900 via-red-900 to-gray-900 text-white hover:shadow-2xl hover:shadow-red-900/50 transition-all hover:scale-105 shadow-xl relative overflow-hidden"
                     >
-                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                        Tap Card to Scan
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-20 transform -skew-x-12 group-hover:translate-x-full transition-all duration-700"></div>
+                        <span className="w-3 h-3 rounded-full bg-green-500 animate-pulse shadow-lg shadow-green-500/50"></span>
+                        <span className="relative z-10 uppercase tracking-wider">Tap Card to Scan</span>
+                        <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        </svg>
                     </button>
                  ) : (
-                    <div className="mt-8 bg-red-50 rounded-lg p-4 w-full max-w-[400px] flex items-center justify-center gap-3 border border-red-100">
-                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                        <span className="text-sm font-medium text-red-800">Pass Expired - Please Renew</span>
+                    <div className="mt-8 bg-gradient-to-r from-red-50 to-orange-50 rounded-xl p-5 w-full max-w-[400px] flex items-center justify-center gap-3 border-2 border-red-200 shadow-lg">
+                        <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                        <span className="text-sm font-black text-red-800 uppercase tracking-wide">Pass Expired - Please Renew</span>
                     </div>
                  )}
             </div>
@@ -284,17 +306,24 @@ function MemberDashboard({ user, onGoHome }) {
 
       </div>
 
-      {/* --- BILLING HISTORY (Existing) --- */}
-      <div className="max-w-5xl mx-auto mt-8">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        {/* --- BILLING HISTORY (Existing) --- */}
+        <div className="max-w-5xl mx-auto mt-8">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden hover:shadow-2xl transition-shadow">
+            <div className="px-8 py-5 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-gray-50 to-gray-100">
+              <h3 className="text-base font-black text-gray-900 uppercase tracking-wider flex items-center gap-3">
+                <div className="bg-gray-900 p-2 rounded-lg">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                Billing History
+              </h3>
+            <span className="text-xs font-black text-green-700 bg-green-100 px-3 py-1.5 rounded-full uppercase tracking-wider flex items-center gap-1.5">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
               </svg>
-              Billing History
-            </h3>
-            <span className="text-xs font-medium text-gray-500 bg-gray-200/50 px-2 py-1 rounded">Secure</span>
+              Secure
+            </span>
           </div>
           
           <div className="divide-y divide-gray-50">
@@ -331,15 +360,20 @@ function MemberDashboard({ user, onGoHome }) {
 
       {/* --- ADDED: RECENT ACCESS LOG --- */}
       <div className="max-w-5xl mx-auto mt-8 mb-12">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-            <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden hover:shadow-2xl transition-shadow">
+          <div className="px-8 py-5 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-gray-50 to-gray-100">
+            <h3 className="text-base font-black text-gray-900 uppercase tracking-wider flex items-center gap-3">
+              <div className="bg-gray-900 p-2 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
               Recent Access Log
             </h3>
-            <span className="text-xs font-medium text-gray-500 bg-gray-200/50 px-2 py-1 rounded">Live</span>
+            <span className="text-xs font-black text-blue-700 bg-blue-100 px-3 py-1.5 rounded-full uppercase tracking-wider flex items-center gap-1.5">
+              <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>
+              Live
+            </span>
           </div>
           
           <div className="divide-y divide-gray-50">
@@ -370,7 +404,7 @@ function MemberDashboard({ user, onGoHome }) {
             )}
           </div>
         </div>
-      </div>
+        </div>
 
       {/* --- SCANNER MODAL (ANIMATED) --- */}
       {showScanner && (
