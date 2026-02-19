@@ -1,48 +1,32 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import TrainerBookingModal from "./TrainerBookingModal";
 
 function Trainers({ user }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedTrainer, setSelectedTrainer] = useState(null);
+    const [trainers, setTrainers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-    const trainers = [
-        {
-            name: "Hamudi Omar",
-            role: "Strength Coach",
-            image:'https://images.unsplash.com/photo-1694856872516-b89f1a9195d7?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1yZWxhdGVkfDE5fHx8ZW58MHx8fHx8&auto=format&fit=crop&q=60&w=600',
-            bio: "With 10 years of experience, Hamudi specializes in Powerlifting, and functional training. He is dedicated to helping clients build strength, improve performance, and achieve their fitness goals.",
-            instagram: "#",
-            facebook: "#",
-            twitter: "#",
-        },
-        {
-            name: "Mama Shawn",
-            role: "Yoga Instructor",
-            image:'https://images.unsplash.com/photo-1762021441225-8ac79c29f317?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&q=80&w=1026',
-            bio: "Mama Shawn is a certified yoga instructor with a passion for mindfulness and holistic wellness. She leads classes that cater to all levels, from beginners to advanced practitioners.",
-            instagram: "#",
-            facebook: "#",
-            twitter: "#",
-        },
-        {
-            name: "Douglas Omilana",
-            role: "Personal Trainer",
-            image:'https://plus.unsplash.com/premium_photo-1665461700538-0e790cf7bab8?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1yZWxhdGVkfDR8fHxlbnwwfHx8fHw%3D&auto=format&fit=crop&q=60&w=600',
-            bio: "Douglas is a dedicated personal trainer who creates customized workout plans to help clients achieve their fitness goals, whether it's weight loss, muscle gain, or overall health improvement.",
-            instagram: "#", 
-            facebook: "#",
-            twitter: "#",
-        },
-        {
-            name: "Andilaman Omar",
-            role: "Cardio Specialist",
-            image:'https://images.unsplash.com/photo-1704223523169-52feeed90365?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MjB8fHBlcnNvbmFsJTIwdHJhaW5lcnxlbnwwfHwwfHx8MA%3D%3D&auto=format&fit=crop&q=60&w=600',
-            bio: "Omar is a cardio specialist with a focus on high-intensity interval training (HIIT) and endurance workouts. He helps clients improve their cardiovascular fitness and achieve their weight loss goals.",
-            instagram: "#",
-            facebook: "#",
-            twitter: "#",
-        },
-    ];
+    useEffect(() => {
+        const fetchTrainers = async () => {
+            try {
+                const response = await fetch('http://localhost:3000/trainers');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch trainers');
+                }
+                const data = await response.json();
+                setTrainers(data);
+            } catch (err) {
+                console.error('Error fetching trainers:', err);
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchTrainers();
+    }, []);
   return (
     <div id="trainers" className="py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -56,6 +40,11 @@ function Trainers({ user }) {
             fitness goals
           </p>
         </div>
+
+        {loading && <div className="text-center py-12"><p className="text-gray-600">Loading trainers...</p></div>}
+        {error && <div className="text-center py-12"><p className="text-red-600">Error: {error}</p></div>}
+        
+        {!loading && !error && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* map method */}
           {trainers.map((trainer, index) => {
@@ -125,12 +114,21 @@ function Trainers({ user }) {
               <div className="text-center">
                 <button 
                   onClick={() => {
+                    if (!user) {
+                      alert('Please log in to book a training session');
+                      return;
+                    }
                     setSelectedTrainer(trainer);
                     setIsModalOpen(true);
                   }}
-                  className="inline-block border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white px-6 py-3 rounded-md font-medium transition duration-300"
+                  disabled={!user}
+                  className={`inline-block border-2 border-red-600 px-6 py-3 rounded-md font-medium transition duration-300 ${
+                    user
+                      ? 'text-red-600 hover:bg-red-600 hover:text-white cursor-pointer'
+                      : 'text-gray-400 border-gray-400 cursor-not-allowed opacity-50'
+                  }`}
                 >
-                  Book a Training session
+                  {user ? 'Book a Training session' : 'Log in to Book'}
                 </button>
               </div>
             </div>
@@ -138,6 +136,7 @@ function Trainers({ user }) {
               );
             })}
         </div>
+        )}
       </div>
 
       {/* Booking Modal */}
