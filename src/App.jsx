@@ -97,14 +97,23 @@ function MainApp() {
   const navigate = useNavigate(); 
 
   useEffect(() => {
-    fetch('http://localhost:3000/me', { credentials: 'include' })
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    fetch('http://localhost:3000/me', { 
+      credentials: 'include',
+      signal: controller.signal 
+    })
       .then(r => {
         if (r.ok) return r.json();
         throw new Error('Not logged in');
       })
       .then(data => setUser(data.user))
       .catch(() => setUser(null))
-      .finally(() => setLoadingUser(false));
+      .finally(() => {
+        clearTimeout(timeoutId);
+        setLoadingUser(false);
+      });
   }, []);
 
   const handleLogout = () => {
