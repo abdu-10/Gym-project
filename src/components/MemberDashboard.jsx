@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import QRCode from "react-qr-code"; 
+import QRCode from "react-qr-code";
+import MyBookings from './MyBookings'; 
 
 // --- ICONS ---
 const CalendarIcon = () => (
@@ -37,6 +38,7 @@ const CloseIcon = () => (
 function MemberDashboard({ user, onGoHome }) {
   const [showScanner, setShowScanner] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
+  const [activeTab, setActiveTab] = useState('overview');
 
   // --- FETCH DATA ---
   useEffect(() => {
@@ -116,6 +118,41 @@ function MemberDashboard({ user, onGoHome }) {
         </button>
       </div>
 
+      {/* Tab Navigation */}
+      <div className="max-w-5xl mx-auto mb-8">
+        <div className="flex gap-4 border-b border-gray-200 flex-wrap">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-6 py-4 font-bold uppercase tracking-wider text-sm transition-all relative ${
+              activeTab === 'overview'
+                ? 'text-red-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            📊 Overview
+            {activeTab === 'overview' && (
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-red-600 rounded-t-lg"></div>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('bookings')}
+            className={`px-6 py-4 font-bold uppercase tracking-wider text-sm transition-all relative ${
+              activeTab === 'bookings'
+                ? 'text-red-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            📅 My Bookings
+            {activeTab === 'bookings' && (
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-red-600 rounded-t-lg"></div>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'overview' && (
+        <>
       <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
         
         {/* --- LEFT COLUMN: Profile Info --- */}
@@ -405,6 +442,15 @@ function MemberDashboard({ user, onGoHome }) {
           </div>
         </div>
         </div>
+      </>
+      )}
+
+      {/* Bookings Tab */}
+      {activeTab === 'bookings' && (
+        <div className="max-w-5xl mx-auto">
+          <MyBookings user={user} />
+        </div>
+      )}
 
       {/* --- SCANNER MODAL (ANIMATED) --- */}
       {showScanner && (
