@@ -13,6 +13,7 @@ import animationData from './assets/animation.json';
 // --- LAZY LOADS ---
 const AdminDashboard = lazy(() => import('./components/AdminDashboard.jsx'));
 const MemberDashboard = lazy(() => import('./components/MemberDashboard.jsx'));
+const TrainerDashboard = lazy(() => import('./components/TrainerDashboard.jsx'));
 const StaffScanner = lazy(() => import('./components/StaffScanner.jsx'));
 
 // --- PAYMENT PROVIDERS ---
@@ -138,41 +139,41 @@ function MainApp() {
           <Route path="/reset-password" element={<ResetPassword />} />
           
           <Route path="/login" element={
-            user ? <Navigate to={user.role === 'admin' ? "/admin" : "/dashboard"} /> : 
+            user ? <Navigate to="/dashboard" /> : 
             <Login onLogin={(u) => { setUser(u); }} onClose={() => window.location.href='/'} />
           } />
 
-          {/* Admin Routes */}
-          <Route path="/admin" element={
-            <ProtectedRoute user={user} allowedRoles={['admin']}>
-              <AdminDashboard 
-                user={user} 
-                onLogout={handleLogout} 
-                onOpenScanner={() => navigate('/admin/scanner')} 
-              />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/admin/scanner" element={
-            <ProtectedRoute user={user} allowedRoles={['admin']}>
-              <StaffScanner onGoHome={() => navigate('/admin')} />
-            </ProtectedRoute>
-          } />
-
-          {/* Member Routes */}
+          {/* Universal Dashboard Route - Shows different dashboard based on role */}
           <Route path="/dashboard" element={
-            <ProtectedRoute user={user} allowedRoles={['member', 'admin']}>
-              <MemberDashboard 
-                user={user} 
-                onLogout={handleLogout} 
-                onGoHome={() => navigate('/')} 
-              />
+            <ProtectedRoute user={user} allowedRoles={['admin', 'member', 'trainer']}>
+              {user?.role === 'admin' ? (
+                <AdminDashboard 
+                  user={user} 
+                  onLogout={handleLogout} 
+                  onOpenScanner={() => navigate('/scanner')} 
+                />
+              ) : user?.role === 'trainer' ? (
+                <TrainerDashboard 
+                  user={user} 
+                  onGoHome={() => navigate('/')} 
+                />
+              ) : (
+                <MemberDashboard 
+                  user={user} 
+                  onLogout={handleLogout} 
+                  onGoHome={() => navigate('/')} 
+                />
+              )}
             </ProtectedRoute>
           } />
 
-          <Route path="/staff-scanner" element={
-            <StaffScanner onGoHome={() => navigate('/')} />
+          <Route path="/scanner" element={
+            <ProtectedRoute user={user} allowedRoles={['admin']}>
+              <StaffScanner onGoHome={() => navigate('/dashboard')} />
+            </ProtectedRoute>
           } />
+
+
 
         </Routes>
       </Suspense>
