@@ -120,9 +120,9 @@ function TrainerBookingModal({ isOpen, onClose, trainer, currentUser }) {
   };
 
   const handleDateChange = (date) => {
-    console.log('📅 handleDateChange called with date:', date, 'trainer.id:', trainer.id);
+    console.log('📅 handleDateChange called with date:', date, 'trainer.id:', trainer.trainer_id);
     setSelectedDate(date);
-    fetchAvailableSlots(trainer.id, date);
+    fetchAvailableSlots(trainer.trainer_id, date);
   };
 
   useEffect(() => {
@@ -168,7 +168,7 @@ function TrainerBookingModal({ isOpen, onClose, trainer, currentUser }) {
 
     const submissionData = {
       trainer_booking: {
-        trainer_id: trainer.id,
+        trainer_id: trainer.trainer_id,
         trainer_name: trainer.name,
         user_name: formData.get('user_name'),
         user_email: formData.get('user_email'),
