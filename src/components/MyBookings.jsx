@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Toast from './Toast';
 import ConfirmModal from './ConfirmModal';
+import DisputeModal from './DisputeModal';
 
 function MyBookings({ user }) {
   const [bookings, setBookings] = useState([]);
@@ -8,6 +9,7 @@ function MyBookings({ user }) {
   const [cancellingId, setCancellingId] = useState(null);
   const [toast, setToast] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, bookingId: null });
+  const [disputeModal, setDisputeModal] = useState({ isOpen: false, booking: null });
 
   // Fetch user's bookings
   useEffect(() => {
@@ -67,15 +69,57 @@ function MyBookings({ user }) {
       pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
       accepted: 'bg-green-100 text-green-800 border-green-300',
       rejected: 'bg-red-100 text-red-800 border-red-300',
-      cancelled: 'bg-gray-100 text-gray-800 border-gray-300'
+      cancelled: 'bg-gray-100 text-gray-800 border-gray-300',
+      completed: 'bg-purple-100 text-purple-800 border-purple-300'
     };
     const labels = {
       pending: '⏳ Pending',
       accepted: '✅ Accepted',
       rejected: '❌ Rejected',
-      cancelled: '🚫 Cancelled'
+      cancelled: '🚫 Cancelled',
+      completed: '✅ Completed'
     };
     return { style: styles[status] || styles.pending, label: labels[status] || status };
+  };
+
+  // Check if dispute window is still open (24 hours from completion)
+  const isDisputeWindowOpen = (completedAt) => {
+    if (!completedAt) return false;
+    const completionTime = new Date(completedAt).getTime();
+    const now = new Date().getTime();
+    const twentyFourHours = 24 * 60 * 60 * 1000;
+    return (now - completionTime) < twentyFourHours;
+  };
+
+  // Get remaining dispute time
+  const getDisputeTimeRemaining = (completedAt) => {
+    const completionTime = new Date(completedAt).getTime();
+    const now = new Date().getTime();
+    const twentyFourHours = 24 * 60 * 60 * 1000;
+    const remaining = twentyFourHours - (now - completionTime);
+    
+    if (remaining <= 0) return 'Expired';
+    
+    const hours = Math.floor(remaining / (60 * 60 * 1000));
+    const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+    
+    if (hours > 0) return `${hours}h ${minutes}m left`;
+    return `${minutes}m left`;
+  };
+
+  // Handle dispute submission
+  const handleDisputeSubmit = (data) => {
+    // Update booking to show disputed status
+    setBookings(bookings.map(b => 
+      b.id === data.booking.id 
+        ? { ...b, dispute_reason: data.booking.dispute_reason, is_disputed: true }
+        : b
+    ));
+    
+    setToast({ 
+      message: '📤 Dispute submitted successfully. Our team will review it shortly.', 
+      type: 'success' 
+    });
   };
 
   // Format date
@@ -267,6 +311,38 @@ function MyBookings({ user }) {
                       </>
                     )}
 
+                    {booking.status === 'completed' && (
+                      <>
+                        <div className="flex-1 bg-purple-50 rounded-xl p-4 border border-purple-200">
+                          <p className="text-sm font-semibold text-purple-800">
+                            ✅ Session Completed
+                          </p>
+                          <p className="text-xs text-purple-700 mt-1">
+                            Completed on {formatDate(booking.updated_at)}
+                          </p>
+                          {booking.is_disputed && (
+                            <p className="text-xs text-orange-700 mt-2 font-semibold">
+                              ⚠️ Dispute Pending Review
+                            </p>
+                          )}
+                          {!booking.is_disputed && isDisputeWindowOpen(booking.updated_at) && (
+                            <p className="text-xs text-purple-700 mt-2">
+                              You can dispute this session within 24 hours
+                            </p>
+                          )}
+                        </div>
+                        {!booking.is_disputed && isDisputeWindowOpen(booking.updated_at) && (
+                          <button
+                            onClick={() => setDisputeModal({ isOpen: true, booking })}
+                            className="px-4 py-3 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 border-2 border-red-200 transition-all"
+                            title={`Dispute expires in ${getDisputeTimeRemaining(booking.updated_at)}`}
+                          >
+                            ⚠️ Dispute ({getDisputeTimeRemaining(booking.updated_at)})
+                          </button>
+                        )}
+                      </>
+                    )}
+
                     {booking.status === 'cancelled' && (
                       <div className="w-full bg-gray-50 rounded-xl p-4 border border-gray-200">
                         <p className="text-sm font-semibold text-gray-800">
@@ -314,6 +390,14 @@ function MyBookings({ user }) {
         cancelText="Keep Booking"
         onConfirm={handleCancelConfirm}
         onCancel={() => setConfirmModal({ isOpen: false, bookingId: null })}
+      />
+
+      {/* Dispute Modal */}
+      <DisputeModal
+        isOpen={disputeModal.isOpen}
+        booking={disputeModal.booking}
+        onClose={() => setDisputeModal({ isOpen: false, booking: null })}
+        onSubmit={handleDisputeSubmit}
       />
     </div>
   );
