@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 function TrainerBookingModal({ isOpen, onClose, trainer, currentUser }) {
   const [loading, setLoading] = useState(false);
@@ -72,6 +72,39 @@ function TrainerBookingModal({ isOpen, onClose, trainer, currentUser }) {
     }
   };
 
+  const getTodayDateString = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Check if a time slot is in the past for today
+  const isTimePast = (timeSlot, date) => {
+    if (!date) return false;
+    const todayStr = getTodayDateString();
+
+    if (date < todayStr) return true;
+    if (date > todayStr) return false;
+
+    // Parse the time slot (e.g., "4:00 PM" -> 16:00)
+    const [time, period] = timeSlot.split(' ');
+    const [hours, minutes] = time.split(':');
+    let hour = parseInt(hours, 10);
+    if (period === 'PM' && hour !== 12) hour += 12;
+    if (period === 'AM' && hour === 12) hour = 0;
+
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+
+    return hour < currentHour || (hour === currentHour && parseInt(minutes, 10) <= currentMinute);
+  };
+
+  // Filter available slots to remove past times
+  const getFilteredSlots = () => timeSlots.filter((slot) => !isTimePast(slot, selectedDate));
+
   // Fetch available slots when date is selected
   const fetchAvailableSlots = async (trainerId, date) => {
     if (!date || !trainerId) {
@@ -125,6 +158,11 @@ function TrainerBookingModal({ isOpen, onClose, trainer, currentUser }) {
     fetchAvailableSlots(trainer.trainer_id, date);
   };
 
+  const handleCloseModal = useCallback(() => {
+    setIsAnimating(false);
+    setTimeout(onClose, 300);
+  }, [onClose]);
+
   useEffect(() => {
     if (isOpen) {
       setLoading(false);
@@ -140,17 +178,12 @@ function TrainerBookingModal({ isOpen, onClose, trainer, currentUser }) {
       };
       document.addEventListener('keydown', handleEscape);
       return () => document.removeEventListener('keydown', handleEscape);
-    } else {
-      setIsAnimating(false);
     }
-  }, [isOpen]);
+
+    setIsAnimating(false);
+  }, [handleCloseModal, isOpen]);
 
   if (!isOpen || !trainer) return null;
-
-  const handleCloseModal = () => {
-    setIsAnimating(false);
-    setTimeout(onClose, 300);
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -295,7 +328,7 @@ function TrainerBookingModal({ isOpen, onClose, trainer, currentUser }) {
         <form className="space-y-7" onSubmit={handleSubmit}>
           <fieldset disabled={loading || successMessage} className="space-y-7">
             {/* Name */}
-            <div style={{ animationDelay: getAnimationDelay(0) }} className="animate-slide-up opacity-0" style={{animation: `slideInUp 0.6s ease-out ${getAnimationDelay(0)} forwards`}}>
+            <div className="animate-slide-up opacity-0" style={{animation: `slideInUp 0.6s ease-out ${getAnimationDelay(0)} forwards`}}>
               <label htmlFor="user_name" className="block text-xs font-bold text-gray-700 mb-2 uppercase tracking-wider">👤 Your Name</label>
               <input 
                 id="user_name"
@@ -365,22 +398,17 @@ function TrainerBookingModal({ isOpen, onClose, trainer, currentUser }) {
               {selectedDate && !loadingSlots && (
                 <div className="grid grid-cols-4 gap-2">
                   {(() => {
-                    console.log('🎯 Rendering time slots panel:');
-                    console.log('   selectedDate:', selectedDate);
-                    console.log('   loadingSlots:', loadingSlots);
-                    console.log('   availableSlots:', availableSlots);
-                    console.log('   timeSlots:', timeSlots);
-                    return timeSlots.map((slot) => {
+                    const filteredSlots = getFilteredSlots();
+
+                    return filteredSlots.map((slot) => {
                       const isAvailable = availableSlots.includes(slot);
                       const isSelected = selectedTimeSlot === slot;
-                      console.log(`   Slot "${slot}": isAvailable=${isAvailable}, isSelected=${isSelected}`);
-                      
+
                       return (
                         <button
                           key={slot}
                           type="button"
                           onClick={() => {
-                            console.log(`👆 Clicked slot: ${slot}, isAvailable: ${isAvailable}`);
                             isAvailable && setSelectedTimeSlot(slot);
                           }}
                           disabled={!isAvailable}
@@ -401,12 +429,33 @@ function TrainerBookingModal({ isOpen, onClose, trainer, currentUser }) {
                 </div>
               )}
               {!selectedDate && <p className="text-xs text-gray-500 font-semibold mt-2">Select a date first</p>}
-              {selectedDate && !loadingSlots && availableSlots.length === 0 && (
-                <p className="text-xs text-orange-500 font-semibold mt-2">⚠️ No available slots for this date</p>
-              )}
-              {selectedDate && !loadingSlots && !selectedTimeSlot && availableSlots.length > 0 && (
-                <p className="text-xs text-red-500 font-semibold mt-2">📌 Please select a time slot</p>
-              )}
+              {selectedDate && !loadingSlots && (() => {
+                const filteredSlots = getFilteredSlots();
+                const hasSelectableSlots = filteredSlots.some((slot) => availableSlots.includes(slot));
+                const isToday = selectedDate === getTodayDateString();
+
+                if (filteredSlots.length === 0) {
+                  return (
+                    <p className="text-xs text-orange-500 font-semibold mt-2">
+                      {isToday ? '⏰ No remaining slots today' : '⚠️ No available slots for this date'}
+                    </p>
+                  );
+                }
+
+                if (!hasSelectableSlots) {
+                  return (
+                    <p className="text-xs text-orange-500 font-semibold mt-2">⚠️ All remaining slots are booked</p>
+                  );
+                }
+
+                if (!selectedTimeSlot) {
+                  return (
+                    <p className="text-xs text-red-500 font-semibold mt-2">📌 Please select a time slot</p>
+                  );
+                }
+
+                return null;
+              })()}
             </div>
 
             {/* Goals & Requirements */}
