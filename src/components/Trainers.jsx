@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import TrainerBookingModal from "./TrainerBookingModal";
+import PaymentModal from "./PaymentModal";
+import Toast from "./Toast";
+import { FaShoppingCart } from 'react-icons/fa';
 
 function Trainers({ user }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -7,7 +10,14 @@ function Trainers({ user }) {
     const [trainers, setTrainers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [trainerAvailability, setTrainerAvailability] = useState({});
+    const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
+    const [selectedTrainerForPackage, setSelectedTrainerForPackage] = useState(null);
+    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+    const [selectedPackage, setSelectedPackage] = useState(null);
+    const [toast, setToast] = useState(null);
 
+    // Fetch trainers
     useEffect(() => {
         const fetchTrainers = async () => {
             try {
@@ -27,6 +37,113 @@ function Trainers({ user }) {
 
         fetchTrainers();
     }, []);
+
+    // Fetch availability for each trainer when user logs in
+    const fetchAvailability = useCallback(async () => {
+        if (!user || trainers.length === 0) return;
+
+        const availabilityData = {};
+
+        for (const trainer of trainers) {
+            try {
+                const response = await fetch(
+                    `http://localhost:3000/trainers/${trainer.trainer_id}/available_for/${user.id}`,
+                    { credentials: 'include' }
+                );
+                if (response.ok) {
+                    const data = await response.json();
+                    availabilityData[trainer.trainer_id] = data;
+                }
+            } catch (err) {
+                console.error(`Error checking availability for trainer ${trainer.trainer_id}:`, err);
+            }
+        }
+
+        setTrainerAvailability(availabilityData);
+    }, [user, trainers]);
+
+    useEffect(() => {
+        if (!user || trainers.length === 0) return;
+        fetchAvailability();
+    }, [user, trainers, fetchAvailability]);
+
+    // Get badge info for trainer
+    const getBadgeInfo = (trainerId) => {
+        const availability = trainerAvailability[trainerId];
+        if (!availability) return null;
+
+        if (availability.reason === 'first_free_session') {
+            return { text: '🎉 FREE SESSION', color: 'bg-green-500', textColor: 'text-white' };
+        } else if (availability.reason === 'has_package') {
+            return { 
+                text: `${availability.sessions_remaining}/${availability.sessions_purchased} LEFT`, 
+                color: 'bg-blue-500', 
+                textColor: 'text-white' 
+            };
+        } else if (availability.reason === 'no_sessions') {
+            return { text: '🔒 NO SESSIONS', color: 'bg-gray-500', textColor: 'text-white' };
+        } else if (availability.reason === 'package_expired') {
+            return { text: '⏰ EXPIRED', color: 'bg-orange-500', textColor: 'text-white' };
+        }
+        return null;
+    };
+
+    const handleTrainerClick = (trainer) => {
+        if (!user) {
+            alert('Please log in to book a training session');
+            return;
+        }
+
+        const availability = trainerAvailability[trainer.trainer_id];
+        
+        // If can't book, show package modal
+        if (availability && !availability.can_book) {
+            setSelectedTrainerForPackage(trainer);
+            setIsPackageModalOpen(true);
+        } else {
+            // Can book - show booking modal
+            setSelectedTrainer(trainer);
+            setIsModalOpen(true);
+        }
+    };
+
+    const handlePackageSelect = (sessions, price) => {
+        setSelectedPackage({ sessions, price });
+        setIsPackageModalOpen(false);
+        setIsPaymentModalOpen(true);
+    };
+
+    const handlePaymentSuccess = async () => {
+        // Refresh availability for this trainer
+        if (selectedTrainerForPackage && user) {
+            try {
+                const response = await fetch(
+                    `http://localhost:3000/trainers/${selectedTrainerForPackage.trainer_id}/available_for/${user.id}`,
+                    { credentials: 'include' }
+                );
+                if (response.ok) {
+                    const data = await response.json();
+                    setTrainerAvailability(prev => ({
+                        ...prev,
+                        [selectedTrainerForPackage.trainer_id]: data
+                    }));
+                }
+            } catch (err) {
+                console.error('Error refreshing availability:', err);
+            }
+        }
+        
+        // Show success message and open booking modal
+        setToast({ 
+            message: `🎉 Package purchased! You can now book sessions with ${selectedTrainerForPackage?.name}`, 
+            type: 'success' 
+        });
+        setIsPaymentModalOpen(false);
+        setSelectedPackage(null);
+        setSelectedTrainer(selectedTrainerForPackage);
+        setSelectedTrainerForPackage(null);
+        setIsModalOpen(true);
+    };
   return (
     <div id="trainers" className="py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -48,13 +165,33 @@ function Trainers({ user }) {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* map method */}
           {trainers.map((trainer, index) => {
+            const availability = trainerAvailability[trainer.trainer_id];
+            const badge = user ? getBadgeInfo(trainer.trainer_id) : null;
+            const canBook = !availability || availability.can_book;
+            const isGreyedOut = user && !canBook;
+
             return (
-                <div key={index} className="bg-gray-50 rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300">
+                <div 
+                  key={index} 
+                  className={`bg-gray-50 rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-all duration-300 relative ${
+                    isGreyedOut ? 'opacity-60 cursor-pointer' : ''
+                  }`}
+                  onClick={() => isGreyedOut && handleTrainerClick(trainer)}
+                >
+            {/* Badge Overlay */}
+            {badge && (
+              <div className={`absolute top-4 right-4 z-10 ${badge.color} ${badge.textColor} px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider shadow-lg`}>
+                {badge.text}
+              </div>
+            )}
+
             <div className="h-72 overflow-hidden">
               <img
                 src={trainer.image}
                 alt={trainer.name}
-                className="w-full h-full object-cover object-center transition-transform duration-500 hover:scale-110"
+                className={`w-full h-full object-cover object-center transition-transform duration-500 hover:scale-110 ${
+                  isGreyedOut ? 'filter grayscale' : ''
+                }`}
               />
             </div>
             <div className="p-6 text-center">
@@ -113,22 +250,27 @@ function Trainers({ user }) {
               </div>
               <div className="text-center">
                 <button 
-                  onClick={() => {
-                    if (!user) {
-                      alert('Please log in to book a training session');
-                      return;
-                    }
-                    setSelectedTrainer(trainer);
-                    setIsModalOpen(true);
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleTrainerClick(trainer);
                   }}
                   disabled={!user}
-                  className={`inline-block border-2 border-red-600 px-6 py-3 rounded-md font-medium transition duration-300 ${
-                    user
-                      ? 'text-red-600 hover:bg-red-600 hover:text-white cursor-pointer'
-                      : 'text-gray-400 border-gray-400 cursor-not-allowed opacity-50'
-                  }`}
+                  className={`${
+                    !user
+                      ? 'inline-block border-2 text-gray-400 border-gray-400 cursor-not-allowed opacity-50'
+                      : isGreyedOut
+                      ? 'inline-flex items-center justify-center gap-2 border-2 border-orange-600 text-orange-600 hover:bg-orange-600 hover:text-white cursor-pointer'
+                      : 'inline-block border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white cursor-pointer'
+                  } px-6 py-3 rounded-md font-medium transition duration-300`}
                 >
-                  {user ? 'Book a Training session' : 'Log in to Book'}
+                  {!user 
+                    ? 'Log in to Book' 
+                    : isGreyedOut 
+                    ? <><FaShoppingCart className="w-4 h-4" /> <span>Buy Package</span></>
+                    : availability?.reason === 'first_free_session'
+                    ? '🎉 Book FREE Session'
+                    : 'Book Training Session'
+                  }
                 </button>
               </div>
             </div>
@@ -145,10 +287,141 @@ function Trainers({ user }) {
         onClose={() => {
           setIsModalOpen(false);
           setSelectedTrainer(null);
+          // Refresh availability when booking modal closes
+          fetchAvailability();
         }}
         trainer={selectedTrainer}
         currentUser={user}
       />
+
+      {/* Package Purchase Modal */}
+      {isPackageModalOpen && selectedTrainerForPackage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-black/30">
+          <div className="bg-white rounded-3xl p-6 max-w-2xl w-full shadow-2xl transform animate-scale-in max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="text-center mb-6">
+              <div className="inline-block mb-3">
+                <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-red-500 shadow-lg mx-auto">
+                  <img 
+                    src={selectedTrainerForPackage.image} 
+                    alt={selectedTrainerForPackage.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              </div>
+              <h2 className="text-3xl font-black text-gray-900 mb-2">
+                Continue Training with<br />
+                <span className="text-red-600">{selectedTrainerForPackage.name}</span>
+              </h2>
+              <p className="text-gray-600">
+                Choose a package to unlock more sessions 💪
+              </p>
+            </div>
+            
+            {/* Package Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              {/* 6 Sessions */}
+              <div className="group relative bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-xl p-4 hover:from-blue-100 hover:to-blue-200 hover:border-blue-500 hover:shadow-lg transform hover:scale-105 transition-all duration-300 cursor-pointer">
+                <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-black px-2 py-1 rounded-full">
+                  STARTER
+                </div>
+                <div className="text-center pt-4">
+                  <p className="text-4xl font-black text-blue-600 mb-1">6</p>
+                  <p className="text-sm font-bold text-gray-700 mb-3">Sessions</p>
+                  <div className="mb-3">
+                    <p className="text-3xl font-black text-gray-900">$80</p>
+                    <p className="text-xs text-gray-600 mt-1">$13.33 per session</p>
+                  </div>
+                  <button 
+                    onClick={() => handlePackageSelect(6, 80)}
+                    className="w-full px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-all shadow-md"
+                  >
+                    Select
+                  </button>
+                </div>
+              </div>
+
+              {/* 9 Sessions - POPULAR */}
+              <div className="group relative bg-gradient-to-br from-red-50 to-red-100 border-4 border-red-500 rounded-xl p-4 hover:from-red-100 hover:to-red-200 hover:shadow-xl transform hover:scale-105 transition-all duration-300 cursor-pointer">
+                <div className="absolute -top-3 left-0 right-0 flex justify-center">
+                  <div className="bg-red-600 text-white text-xs font-black px-4 py-1 rounded-full shadow-lg">
+                    ⭐ POPULAR
+                  </div>
+                </div>
+                <div className="text-center pt-5">
+                  <p className="text-4xl font-black text-red-600 mb-1">9</p>
+                  <p className="text-sm font-bold text-gray-700 mb-3">Sessions</p>
+                  <div className="mb-3">
+                    <p className="text-3xl font-black text-gray-900">$120</p>
+                    <p className="text-xs text-gray-600 mt-1">$13.33 per session</p>
+                  </div>
+                  <button 
+                    onClick={() => handlePackageSelect(9, 120)}
+                    className="w-full px-4 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white text-sm font-bold rounded-lg hover:from-red-700 hover:to-red-800 transition-all shadow-lg"
+                  >
+                    Select
+                  </button>
+                </div>
+              </div>
+
+              {/* 12 Sessions - BEST VALUE */}
+              <div className="group relative bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-300 rounded-xl p-4 hover:from-green-100 hover:to-green-200 hover:border-green-500 hover:shadow-lg transform hover:scale-105 transition-all duration-300 cursor-pointer">
+                <div className="absolute top-2 right-2 bg-green-600 text-white text-xs font-black px-2 py-1 rounded-full">
+                  BEST VALUE
+                </div>
+                <div className="text-center pt-4">
+                  <p className="text-4xl font-black text-green-600 mb-1">12</p>
+                  <p className="text-sm font-bold text-gray-700 mb-3">Sessions</p>
+                  <div className="mb-3">
+                    <p className="text-3xl font-black text-gray-900">$180</p>
+                    <p className="text-xs text-gray-600 mt-1">$15 per session</p>
+                  </div>
+                  <button 
+                    onClick={() => handlePackageSelect(12, 180)}
+                    className="w-full px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition-all shadow-md"
+                  >
+                    Select
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Close Button */}
+            <button
+              onClick={() => {
+                setIsPackageModalOpen(false);
+                setSelectedTrainerForPackage(null);
+              }}
+              className="w-full px-6 py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-all"
+            >
+              Maybe Later
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => {
+          setIsPaymentModalOpen(false);
+          setSelectedPackage(null);
+          setSelectedTrainerForPackage(null);
+        }}
+        trainer={selectedTrainerForPackage}
+        packageData={selectedPackage}
+        userId={user?.id}
+        onPaymentSuccess={handlePaymentSuccess}
+      />
+
+      {/* Toast Notifications */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }
