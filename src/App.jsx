@@ -138,6 +138,9 @@ function MainApp() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           
+          {/* Redirect old /admin route to /dashboard */}
+          <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
+          
           <Route path="/login" element={
             user ? <Navigate to="/dashboard" /> : 
             <Login onLogin={(u) => { setUser(u); }} onClose={() => window.location.href='/'} />
