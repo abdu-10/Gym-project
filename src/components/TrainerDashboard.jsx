@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Toast from './Toast';
 import ConfirmModal from './ConfirmModal';
 import { FaWhatsapp } from 'react-icons/fa';
@@ -6,6 +6,10 @@ import { FaWhatsapp } from 'react-icons/fa';
 function TrainerDashboard({ user, onGoHome }) {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [earnings, setEarnings] = useState(null);
+  const [earningsPackages, setEarningsPackages] = useState([]);
+  const [earningsLoading, setEarningsLoading] = useState(true);
+  const [earningsError, setEarningsError] = useState(null);
   const [activeTab, setActiveTab] = useState('pending');
   const [processingId, setProcessingId] = useState(null);
   const [toast, setToast] = useState(null);
@@ -31,6 +35,37 @@ function TrainerDashboard({ user, onGoHome }) {
       });
   }, [user]);
 
+  const fetchEarnings = useCallback(() => {
+    const trainerId = user?.trainer_id ?? user?.id;
+    if (!trainerId) return;
+
+    setEarningsLoading(true);
+    setEarningsError(null);
+
+    fetch(`http://localhost:3000/trainer_packages?trainer_id=${trainerId}`, {
+      credentials: 'include'
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Failed to fetch earnings');
+        return res.json();
+      })
+      .then(data => {
+        setEarnings(data.earnings || null);
+        setEarningsPackages(data.trainer_packages || []);
+        setEarningsLoading(false);
+      })
+      .catch(err => {
+        console.error('Error fetching earnings:', err);
+        setEarningsError('Failed to load earnings');
+        setEarningsLoading(false);
+      });
+  }, [user]);
+
+  // Fetch trainer earnings summary
+  useEffect(() => {
+    fetchEarnings();
+  }, [fetchEarnings]);
+
   // Handle accept/reject
   const handleAction = (bookingId, action) => {
     setConfirmModal({ isOpen: true, bookingId, action });
@@ -50,13 +85,51 @@ function TrainerDashboard({ user, onGoHome }) {
       });
 
       const data = await response.json();
+      console.log('Booking update response:', data);
+      console.log('trainer_package in response:', data.trainer_package);
 
       if (response.ok) {
-        setBookings(bookings.map(b => b.id === bookingId ? { ...b, status: action } : b));
+        // Use backend response if available, otherwise use local action
+        const updatedBooking = data.booking || { id: bookingId, status: action };
+        console.log('Updated booking status:', updatedBooking.status);
+        
+        setBookings(bookings.map(b => b.id === bookingId ? { ...b, ...updatedBooking } : b));
+        const messages = {
+          confirmed: 'Booking confirmed!',
+          rejected: 'Booking rejected',
+          completed: '✅ Session completed & session deducted!'
+        };
         setToast({ 
-          message: action === 'confirmed' ? 'Booking confirmed!' : 'Booking rejected', 
-          type: action === 'confirmed' ? 'success' : 'info' 
+          message: messages[action] || 'Booking updated', 
+          type: ['confirmed', 'completed'].includes(action) ? 'success' : 'info' 
         });
+
+        // If session completed, update earnings with returned package data
+        if (action === 'completed') {
+          console.log('Completed action detected');
+          console.log('data.trainer_package exists?', !!data.trainer_package);
+          console.log('earningsPackages before update:', earningsPackages);
+          
+          if (data.trainer_package) {
+            console.log('Updating earningsPackages with:', data.trainer_package);
+            setEarningsPackages(prevPkgs => {
+              const updated = prevPkgs.map(pkg => 
+                pkg.id === data.trainer_package.id 
+                  ? {
+                      ...pkg,
+                      sessions_used: data.trainer_package.sessions_used,
+                      sessions_left: data.trainer_package.sessions_remaining
+                    }
+                  : pkg
+              );
+              console.log('Updated earningsPackages:', updated);
+              return updated;
+            });
+          }
+          // Also refresh to get updated earnings totals
+          console.log('Calling fetchEarnings');
+          fetchEarnings();
+        }
       } else {
         console.error('Backend error:', data);
         setToast({ message: data.message || 'Failed to update booking', type: 'error' });
@@ -67,6 +140,14 @@ function TrainerDashboard({ user, onGoHome }) {
     } finally {
       setProcessingId(null);
     }
+  };
+
+  // Check if session time has passed (allows marking complete)
+  const canMarkComplete = (booking) => {
+    if (booking.status !== 'confirmed') return false;
+    const bookingDateTime = new Date(`${booking.preferred_date}T${booking.preferred_time || '00:00'}`);
+    const now = new Date();
+    return bookingDateTime <= now;
   };
 
   const formatDate = (dateStr) => {
@@ -83,24 +164,30 @@ function TrainerDashboard({ user, onGoHome }) {
     return `${hour12}:${minutes} ${ampm}`;
   };
 
+  const formatCurrency = (value) => {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value));
+  };
+
+  // Helper function to get full image URL
+  const getImageUrl = (imagePath) => {
+    if (!imagePath) return null;
+    if (imagePath.startsWith('http')) return imagePath;
+    return `http://localhost:3000${imagePath}`;
+  };
+
   // Filter bookings by status
   const pendingBookings = bookings.filter(b => b.status === 'pending');
   
-  // Confirmed bookings only if date is in the future
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Confirmed bookings stay in Accepted until explicitly completed or cancelled
+  // This allows trainers to mark past sessions as complete
+  const acceptedBookings = bookings.filter(b => b.status === 'confirmed');
   
-  const acceptedBookings = bookings.filter(b => {
-    if (b.status !== 'confirmed') return false;
-    const bookingDate = new Date(b.preferred_date);
-    return bookingDate >= today;
-  });
-  
-  // History: rejected, cancelled, or past confirmed bookings
+  // History: rejected, cancelled, or completed bookings
   const historyBookings = bookings.filter(b => 
     b.status === 'rejected' || 
     b.status === 'cancelled' ||
-    (b.status === 'confirmed' && new Date(b.preferred_date) < today)
+    b.status === 'completed'
   );
 
   // Stats
@@ -131,6 +218,45 @@ function TrainerDashboard({ user, onGoHome }) {
       </div>
 
       <div className="max-w-6xl mx-auto">
+        {/* Earnings Summary */}
+        <div className="mb-10">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-extrabold text-gray-900">Earnings Overview</h2>
+              <p className="text-sm text-gray-500">Revenue split: 60% trainer · 40% gym</p>
+            </div>
+            {earningsError && (
+              <span className="text-xs font-semibold text-red-600">{earningsError}</span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-6 text-white shadow-xl">
+              <p className="text-indigo-100 text-xs font-bold uppercase tracking-wider mb-2">Gross Revenue</p>
+              <p className="text-3xl font-black">
+                {earningsLoading ? '...' : formatCurrency(earnings?.gross_revenue)}
+              </p>
+              <p className="text-xs text-indigo-100 mt-1">All package sales</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 text-white shadow-xl">
+              <p className="text-emerald-100 text-xs font-bold uppercase tracking-wider mb-2">Your Earnings (60%)</p>
+              <p className="text-3xl font-black">
+                {earningsLoading ? '...' : formatCurrency(earnings?.trainer_earnings)}
+              </p>
+              <p className="text-xs text-emerald-100 mt-1">Available earnings</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-slate-600 to-slate-700 rounded-2xl p-6 text-white shadow-xl">
+              <p className="text-slate-200 text-xs font-bold uppercase tracking-wider mb-2">Packages Sold</p>
+              <p className="text-3xl font-black">
+                {earningsLoading ? '...' : (earnings?.package_count ?? 0)}
+              </p>
+              <p className="text-xs text-slate-200 mt-1">Total packages</p>
+            </div>
+          </div>
+        </div>
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-2xl p-6 text-white shadow-xl">
@@ -211,6 +337,17 @@ function TrainerDashboard({ user, onGoHome }) {
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-red-600 rounded-t-lg"></div>
             )}
           </button>
+          <button
+            onClick={() => setActiveTab('earnings')}
+            className={`px-6 py-4 font-bold uppercase tracking-wider text-sm transition-all relative ${
+              activeTab === 'earnings' ? 'text-red-600' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            💰 Earnings
+            {activeTab === 'earnings' && (
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-red-600 rounded-t-lg"></div>
+            )}
+          </button>
         </div>
 
         {/* Loading State */}
@@ -236,15 +373,30 @@ function TrainerDashboard({ user, onGoHome }) {
               </div>
             ) : (
               pendingBookings.map((booking) => (
-                <div key={booking.id} className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all">
+                <div key={booking.id} className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-2xl transition-all">
                   <div className="p-6">
-                    <div className="flex items-start justify-between mb-6">
-                      <div>
-                        <h3 className="text-xl font-black text-gray-900">{booking.user_name}</h3>
-                        <p className="text-sm text-gray-500 font-semibold">{booking.user_email}</p>
-                        <p className="text-sm text-gray-500 font-semibold">📱 {booking.user_phone}</p>
+                    {/* User Header with Avatar */}
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-4 flex-1">
+                        {/* User Avatar/Image */}
+                        {booking.user_image ? (
+                          <img 
+                            src={getImageUrl(booking.user_image)} 
+                            alt={booking.user_name}
+                            className="w-16 h-16 rounded-full object-cover shadow-lg border-2 border-yellow-200 flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-full flex items-center justify-center text-white font-black text-xl shadow-lg border-2 border-yellow-200 flex-shrink-0">
+                            {booking.user_name?.charAt(0)?.toUpperCase() || '?'}
+                          </div>
+                        )}
+                        {/* User Info */}
+                        <div className="flex-1">
+                          <h3 className="text-lg font-black text-gray-900">{booking.user_name}</h3>
+                          <p className="text-sm text-gray-500 font-semibold">{booking.user_email}</p>
+                        </div>
                       </div>
-                      <span className="px-4 py-2 rounded-full font-bold text-sm border-2 bg-yellow-100 text-yellow-800 border-yellow-300">
+                      <span className="px-4 py-2 rounded-full font-bold text-sm border-2 bg-yellow-100 text-yellow-800 border-yellow-300 whitespace-nowrap">
                         ⏳ Pending
                       </span>
                     </div>
@@ -301,15 +453,30 @@ function TrainerDashboard({ user, onGoHome }) {
               </div>
             ) : (
               acceptedBookings.map((booking) => (
-                <div key={booking.id} className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                <div key={booking.id} className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-2xl transition-all">
                   <div className="p-6">
-                    <div className="flex items-start justify-between mb-6">
-                      <div>
-                        <h3 className="text-xl font-black text-gray-900">{booking.user_name}</h3>
-                        <p className="text-sm text-gray-500 font-semibold">{booking.user_email}</p>
-                        <p className="text-sm text-gray-500 font-semibold">📱 {booking.user_phone}</p>
+                    {/* User Header with Avatar */}
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-4 flex-1">
+                        {/* User Avatar/Image */}
+                        {booking.user_image ? (
+                          <img 
+                            src={getImageUrl(booking.user_image)} 
+                            alt={booking.user_name}
+                            className="w-16 h-16 rounded-full object-cover shadow-lg border-2 border-red-200 flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center text-white font-black text-xl shadow-lg border-2 border-red-200 flex-shrink-0">
+                            {booking.user_name?.charAt(0)?.toUpperCase() || '?'}
+                          </div>
+                        )}
+                        {/* User Info */}
+                        <div className="flex-1">
+                          <h3 className="text-lg font-black text-gray-900">{booking.user_name}</h3>
+                          <p className="text-sm text-gray-500 font-semibold">{booking.user_email}</p>
+                        </div>
                       </div>
-                      <span className="px-4 py-2 rounded-full font-bold text-sm border-2 bg-green-100 text-green-800 border-green-300">
+                      <span className="px-4 py-2 rounded-full font-bold text-sm border-2 bg-green-100 text-green-800 border-green-300 whitespace-nowrap">
                         ✅ Confirmed
                       </span>
                     </div>
@@ -333,7 +500,7 @@ function TrainerDashboard({ user, onGoHome }) {
                     )}
 
                     {/* Contact Client Section */}
-                    <div className="mb-4">
+                    <div className="mb-6">
                       <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-3">💬 Contact Client</p>
                       <div className="flex gap-3">
                         {/* Call Client Button */}
@@ -358,8 +525,21 @@ function TrainerDashboard({ user, onGoHome }) {
                           <span>WhatsApp</span>
                         </a>
                       </div>
-                      <p className="text-xs text-gray-500 mt-2 text-center">📱 {booking.user_phone}</p>
                     </div>
+
+                    {/* Mark Complete Button */}
+                    {canMarkComplete(booking) && (
+                      <div className="pt-4 border-t border-gray-200">
+                        <button
+                          onClick={() => handleAction(booking.id, 'completed')}
+                          disabled={processingId === booking.id}
+                          className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white font-black rounded-xl hover:from-purple-700 hover:to-purple-800 transition-all transform hover:scale-105 hover:shadow-lg shadow-md disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {processingId === booking.id ? '🔄 Processing...' : '✅ Mark Complete & Deduct Session'}
+                        </button>
+                        <p className="text-xs text-purple-600 mt-2 text-center font-semibold">Session time has passed - mark complete to deduct from package</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))
@@ -378,30 +558,163 @@ function TrainerDashboard({ user, onGoHome }) {
               </div>
             ) : (
               historyBookings.map((booking) => (
-                <div key={booking.id} className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden opacity-75">
+                <div key={booking.id} className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg border border-gray-200 overflow-hidden opacity-75 hover:opacity-100 transition-all">
                   <div className="p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="text-lg font-bold text-gray-700">{booking.user_name}</h3>
-                        <p className="text-sm text-gray-500">{booking.user_email}</p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4 flex-1">
+                        {/* User Avatar/Image */}
+                        {booking.user_image ? (
+                          <img 
+                            src={getImageUrl(booking.user_image)} 
+                            alt={booking.user_name}
+                            className="w-14 h-14 rounded-full object-cover shadow-md border-2 border-gray-300 flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center text-white font-black text-lg shadow-md border-2 border-gray-300 flex-shrink-0">
+                            {booking.user_name?.charAt(0)?.toUpperCase() || '?'}
+                          </div>
+                        )}
+                        {/* User Info */}
+                        <div className="flex-1">
+                          <h3 className="text-base font-bold text-gray-700">{booking.user_name}</h3>
+                          <p className="text-sm text-gray-500">{booking.user_email}</p>
+                        </div>
                       </div>
-                      <span className={`px-4 py-2 rounded-full font-bold text-sm border-2 ${
+                      <span className={`px-4 py-2 rounded-full font-bold text-sm border-2 whitespace-nowrap ${
                         booking.status === 'rejected' 
                           ? 'bg-red-100 text-red-800 border-red-300'
+                          : booking.status === 'completed'
+                          ? 'bg-purple-100 text-purple-800 border-purple-300'
                           : 'bg-gray-100 text-gray-800 border-gray-300'
                       }`}>
-                        {booking.status === 'rejected' ? '❌ Rejected' : '🚫 Cancelled'}
+                        {booking.status === 'rejected' ? '❌ Rejected' : booking.status === 'completed' ? '✅ Completed' : '🚫 Cancelled'}
                       </span>
                     </div>
-
-                    <div className="flex gap-4 text-sm text-gray-600">
-                      <span>📅 {formatDate(booking.preferred_date)}</span>
-                      <span>⏰ {formatTime(booking.preferred_time)}</span>
+                    <div className="flex gap-6 text-sm text-gray-600 mt-4 pt-4 border-t border-gray-200">
+                      <span className="font-semibold">📅 {formatDate(booking.preferred_date)}</span>
+                      <span className="font-semibold">⏰ {formatTime(booking.preferred_time)}</span>
                     </div>
                   </div>
                 </div>
               ))
             )}
+          </div>
+        )}
+
+        {/* Earnings Tab */}
+        {!loading && activeTab === 'earnings' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+              <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <h3 className="text-lg font-black text-gray-900">Earnings Detail</h3>
+                  <p className="text-sm text-gray-500">Packages sold and your 60% earnings</p>
+                </div>
+                {earningsError && (
+                  <span className="text-xs font-semibold text-red-600">{earningsError}</span>
+                )}
+              </div>
+
+              <div className="p-6">
+                {earningsLoading ? (
+                  <div className="text-center text-sm text-gray-500">Loading earnings...</div>
+                ) : earningsPackages.length === 0 ? (
+                  <div className="text-center text-sm text-gray-500">No packages sold yet.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Client</th>
+                          <th className="text-left py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Package</th>
+                          <th className="text-left py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Sessions</th>
+                          <th className="text-left py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Used</th>
+                          <th className="text-left py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Left</th>
+                          <th className="text-left py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                          <th className="text-left py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Progress</th>
+                          <th className="text-left py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Gross</th>
+                          <th className="text-left py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Your 60%</th>
+                          <th className="text-right py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">Purchased</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {[...earningsPackages]
+                          .map((pkg) => {
+                            const sessions = Number(pkg.sessions_purchased ?? pkg.sessions ?? 0);
+                            const sessionsUsed = Number(pkg.sessions_used ?? 0);
+                            const sessionsLeft = Math.max(sessions - sessionsUsed, 0);
+                            const isCompleted = sessions > 0 && sessionsLeft === 0;
+                            const expiresAt = pkg.expires_at ? new Date(pkg.expires_at) : null;
+                            const isOverdue = !isCompleted && expiresAt && expiresAt < new Date();
+
+                            return {
+                              pkg,
+                              sessions,
+                              sessionsUsed,
+                              sessionsLeft,
+                              isCompleted,
+                              isOverdue
+                            };
+                          })
+                          .sort((a, b) => {
+                            if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
+                            if (a.isOverdue !== b.isOverdue) return a.isOverdue ? -1 : 1;
+                            return (b.sessionsLeft ?? 0) - (a.sessionsLeft ?? 0);
+                          })
+                          .map(({ pkg, sessions, sessionsUsed, sessionsLeft, isCompleted, isOverdue }) => {
+                          const gross = Number(pkg.total_cost ?? pkg.amount ?? 0);
+                          const trainerShare = pkg.trainer_earnings ?? (gross * 0.6);
+                          const clientName = pkg.user_name || pkg.client_name || pkg.user?.name || 'Client';
+                          const packageName = pkg.package_type || pkg.plan_name || 'Package';
+                          const purchasedAt = pkg.purchased_at || pkg.created_at;
+                          const progress = sessions > 0 ? Math.min((sessionsUsed / sessions) * 100, 100) : 0;
+
+                          return (
+                            <tr
+                              key={pkg.id}
+                              className={`hover:bg-gray-50 transition-colors ${
+                                isOverdue ? 'bg-amber-50/60' : ''
+                              }`}
+                            >
+                              <td className="py-3 text-sm font-semibold text-gray-900">{clientName}</td>
+                              <td className="py-3 text-sm text-gray-600">{packageName}</td>
+                              <td className="py-3 text-sm text-gray-600">{sessions || '—'}</td>
+                              <td className="py-3 text-sm text-gray-600">{sessionsUsed}</td>
+                              <td className="py-3 text-sm text-gray-600">{sessionsLeft}</td>
+                              <td className="py-3 text-sm">
+                                <span className={`px-2 py-1 rounded-full text-xs font-bold border ${
+                                  isCompleted
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : isOverdue
+                                    ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                                }`}>
+                                  {isCompleted ? '✅ Completed' : isOverdue ? '⚠️ Overdue' : '⏳ Active'}
+                                </span>
+                              </td>
+                              <td className="py-3 text-sm text-gray-600">
+                                <div className="w-28">
+                                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full ${isCompleted ? 'bg-emerald-500' : isOverdue ? 'bg-amber-500' : 'bg-red-500'}`}
+                                      style={{ width: `${progress}%` }}
+                                    ></div>
+                                  </div>
+                                  <div className="text-[10px] text-gray-500 mt-1">{Math.round(progress)}%</div>
+                                </div>
+                              </td>
+                              <td className="py-3 text-sm text-gray-600">{formatCurrency(gross)}</td>
+                              <td className="py-3 text-sm font-semibold text-emerald-600">{formatCurrency(trainerShare)}</td>
+                              <td className="py-3 text-sm text-gray-600 text-right">{purchasedAt ? formatDate(purchasedAt) : '—'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -418,13 +731,34 @@ function TrainerDashboard({ user, onGoHome }) {
       {/* Confirmation Modal */}
       <ConfirmModal
         isOpen={confirmModal.isOpen}
-        title={confirmModal.action === 'confirmed' ? 'Confirm Booking' : 'Reject Booking'}
+        title={
+          confirmModal.action === 'confirmed'
+            ? 'Confirm Booking'
+            : confirmModal.action === 'completed'
+            ? 'Mark Session Complete'
+            : 'Reject Booking'
+        }
         message={
           confirmModal.action === 'confirmed'
             ? 'Are you sure you want to confirm this booking? The client will be notified.'
+            : confirmModal.action === 'completed'
+            ? 'Mark this session as completed and deduct one session from the client package?'
             : 'Are you sure you want to reject this booking? The client will be notified.'
         }
-        confirmText={confirmModal.action === 'confirmed' ? 'Yes, Confirm' : 'Yes, Reject'}
+        confirmText={
+          confirmModal.action === 'confirmed'
+            ? 'Yes, Confirm'
+            : confirmModal.action === 'completed'
+            ? 'Yes, Mark Complete'
+            : 'Yes, Reject'
+        }
+        variant={
+          confirmModal.action === 'rejected'
+            ? 'danger'
+            : confirmModal.action === 'completed'
+            ? 'success'
+            : 'info'
+        }
         cancelText="Cancel"
         onConfirm={handleConfirmAction}
         onCancel={() => setConfirmModal({ isOpen: false, bookingId: null, action: null })}
