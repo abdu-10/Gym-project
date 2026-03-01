@@ -43,6 +43,10 @@ function StaffScanner({ onGoHome }) {
       setScannerKey(prev => prev + 1);
   };
 
+    const isEntrySuccess = scanResult?.status === 'allowed' || scanResult?.action === 'entry';
+    const isExitSuccess = scanResult?.status === 'checked_out' || scanResult?.action === 'exit';
+    const isSuccess = isEntrySuccess || isExitSuccess;
+
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
       
@@ -128,10 +132,10 @@ function StaffScanner({ onGoHome }) {
                 </button>
 
                 {/* --- ACCESS GRANTED --- */}
-                {scanResult.status === 'allowed' ? (
+                {isSuccess ? (
                     <div className="text-center">
                         <div className="relative mb-8 inline-block">
-                             <div className="w-56 h-56 rounded-full border-[8px] border-green-500 p-1 bg-black animate-popIn shadow-[0_0_60px_#22c55e]">
+                             <div className={`w-56 h-56 rounded-full border-[8px] p-1 bg-black animate-popIn ${isExitSuccess ? 'border-blue-500 shadow-[0_0_60px_#3b82f6]' : 'border-green-500 shadow-[0_0_60px_#22c55e]'}`}>
                                 {scanResult.user.photo ? (
                                     <img src={scanResult.user.photo} className="w-full h-full rounded-full object-cover" alt="User" />
                                 ) : (
@@ -140,13 +144,13 @@ function StaffScanner({ onGoHome }) {
                                     </div>
                                 )}
                              </div>
-                             <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-green-500 text-black font-black text-sm uppercase px-6 py-2 rounded-full tracking-widest shadow-xl animate-popIn" style={{animationDelay: '0.2s'}}>
-                                Match Confirmed
+                             <div className={`absolute -bottom-4 left-1/2 -translate-x-1/2 text-black font-black text-sm uppercase px-6 py-2 rounded-full tracking-widest shadow-xl animate-popIn ${isExitSuccess ? 'bg-blue-500' : 'bg-green-500'}`} style={{animationDelay: '0.2s'}}>
+                                {isExitSuccess ? 'Checkout Confirmed' : 'Match Confirmed'}
                              </div>
                         </div>
                         
-                        <h2 className="text-5xl font-black text-white italic tracking-tighter mb-2">GRANTED</h2>
-                        <p className="text-green-500 font-mono text-sm tracking-widest uppercase mb-6">Subject: {scanResult.user.name}</p>
+                        <h2 className="text-5xl font-black text-white italic tracking-tighter mb-2">{isExitSuccess ? 'CHECKED OUT' : 'GRANTED'}</h2>
+                        <p className={`${isExitSuccess ? 'text-blue-400' : 'text-green-500'} font-mono text-sm tracking-widest uppercase mb-6`}>Subject: {scanResult.user.name}</p>
 
                         <div className="flex justify-center gap-3 mb-8">
                             <div className="bg-gray-900 px-4 py-3 rounded-xl border border-gray-800 w-1/2">
@@ -154,10 +158,18 @@ function StaffScanner({ onGoHome }) {
                                 <span className="text-white font-bold uppercase text-sm">{scanResult.user.plan}</span>
                             </div>
                             <div className="bg-gray-900 px-4 py-3 rounded-xl border border-gray-800 w-1/2">
-                                <span className="text-gray-500 text-[10px] uppercase block mb-1">Total Visits</span>
-                                <span className="text-white font-bold uppercase text-sm">{scanResult.user.visits || 0}</span>
+                                <span className="text-gray-500 text-[10px] uppercase block mb-1">{isExitSuccess ? 'Session Time' : 'Total Visits'}</span>
+                                <span className="text-white font-bold uppercase text-sm">{isExitSuccess ? (scanResult.session?.duration_formatted || '—') : (scanResult.user.visits || 0)}</span>
                             </div>
                         </div>
+
+                        {isExitSuccess && scanResult.session && (
+                            <div className="mb-8 bg-blue-950/40 border border-blue-500/20 rounded-xl px-4 py-3 text-left">
+                                <p className="text-blue-300 font-mono text-[10px] uppercase tracking-widest mb-1">Session Summary</p>
+                                <p className="text-zinc-300 text-xs">Check-in: {scanResult.session.checked_in_at || '—'}</p>
+                                <p className="text-zinc-300 text-xs">Check-out: {scanResult.session.checked_out_at || '—'}</p>
+                            </div>
+                        )}
 
                         {/* BIG NEXT SCAN BUTTON */}
                         <button 
@@ -165,7 +177,7 @@ function StaffScanner({ onGoHome }) {
                             className="w-full bg-white text-black font-black py-4 rounded-xl hover:bg-gray-200 transition shadow-[0_0_20px_rgba(255,255,255,0.3)] uppercase tracking-widest text-sm flex items-center justify-center gap-2"
                         >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /></svg>
-                            Scan Next Member
+                            {isExitSuccess ? 'Scan Next Checkout' : 'Scan Next Member'}
                         </button>
                     </div>
                 ) : (
