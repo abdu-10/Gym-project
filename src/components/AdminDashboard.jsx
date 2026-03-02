@@ -33,6 +33,14 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
   const [allUsersLoading, setAllUsersLoading] = useState(true);
   const [allTrainers, setAllTrainers] = useState([]);
   const [allTrainersLoading, setAllTrainersLoading] = useState(true);
+  const [todaySessions, setTodaySessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [allSessions, setAllSessions] = useState([]);
+  const [allSessionsLoading, setAllSessionsLoading] = useState(true);
+  const [classOpsTab, setClassOpsTab] = useState('today');
+  const [addWalkinLoading, setAddWalkinLoading] = useState(false);
+  const [sessionDetailsModal, setSessionDetailsModal] = useState({ isOpen: false, session: null, members: [], loading: false });
+  const [attendeeFilter, setAttendeeFilter] = useState('all');
 
   useEffect(() => {
     fetch('http://localhost:3000/admin_stats', { credentials: 'include' })
@@ -153,6 +161,210 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
         setAllTrainersLoading(false);
       });
   }, []);
+
+  // Fetch today's class sessions for check-in
+  useEffect(() => {
+    setSessionsLoading(true);
+    fetch('http://localhost:3000/admin/classes/today', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        const sessions = Array.isArray(data) ? data : data.sessions || [];
+        setTodaySessions(sessions.sort((a, b) => {
+          const timeA = a.formatted_time || '';
+          const timeB = b.formatted_time || '';
+          return timeA.localeCompare(timeB);
+        }));
+      })
+      .catch(err => {
+        console.error('Error fetching sessions:', err);
+        setTodaySessions([]);
+      })
+      .finally(() => setSessionsLoading(false));
+  }, []);
+
+  // Fetch all class sessions for booking management tab
+  useEffect(() => {
+    setAllSessionsLoading(true);
+    const fetchAllSessions = async () => {
+      const endpoints = [
+        'http://localhost:3000/admin/classes?include_members=true',
+        'http://localhost:3000/classes?include_members=true'
+      ];
+
+      for (const url of endpoints) {
+        const res = await fetch(url, { credentials: 'include' });
+        if (res.ok) return res.json();
+      }
+
+      throw new Error('Failed to fetch all class sessions');
+    };
+
+    fetchAllSessions()
+      .then(data => {
+        const classes = Array.isArray(data) ? data : data.classes || data.data || [];
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        const flattenedSessions = classes.flatMap((cls) => {
+          const sessions = Array.isArray(cls?.sessions) ? cls.sessions : [];
+          return sessions.map((session) => ({
+            ...session,
+            class_name: session.class_name || cls.name || 'Class',
+            instructor: session.instructor || cls.instructor || 'Trainer'
+          }));
+        });
+
+        const upcomingOnly = flattenedSessions
+          .filter((session) => {
+            if (!session?.scheduled_date) return true;
+            return new Date(session.scheduled_date) >= startOfToday;
+          })
+          .sort((a, b) => {
+            if (a?.scheduled_date && b?.scheduled_date) {
+              return new Date(a.scheduled_date) - new Date(b.scheduled_date);
+            }
+            return (a?.formatted_time || '').localeCompare(b?.formatted_time || '');
+          });
+
+        setAllSessions(upcomingOnly);
+      })
+      .catch((err) => {
+        console.error('Error fetching all class sessions:', err);
+        setAllSessions([]);
+      })
+      .finally(() => setAllSessionsLoading(false));
+  }, []);
+
+  const handleAddWalkin = async (sessionId) => {
+    setAddWalkinLoading(true);
+    try {
+      const res = await fetch(`http://localhost:3000/class_sessions/${sessionId}/add_walkin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+
+      if (!res.ok) {
+        let errorMessage = 'Failed to add walk-in';
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData?.error || errorData?.message || errorMessage;
+        } catch {
+          // keep default
+        }
+        throw new Error(errorMessage);
+      }
+      
+      const data = await res.json();
+      const updatedSession = data?.session || data?.class_session || data;
+      const nextBookedCount = Number(updatedSession?.booked_count);
+      const nextSpotsRemaining = Number(updatedSession?.spots_remaining);
+      const nextIsFull = typeof updatedSession?.is_full === 'boolean' ? updatedSession.is_full : undefined;
+      const nextMembers = Array.isArray(updatedSession?.booked_members)
+        ? updatedSession.booked_members
+        : (Array.isArray(data?.booked_members) ? data.booked_members : null);
+      
+      // Update the session with new booking count
+      setTodaySessions(prev => prev.map(sess => 
+        sess.id === sessionId 
+          ? {
+              ...sess,
+              booked_count: Number.isFinite(nextBookedCount) ? nextBookedCount : (Number(sess.booked_count || 0) + 1),
+              spots_remaining: Number.isFinite(nextSpotsRemaining) ? nextSpotsRemaining : Math.max(0, Number(sess.spots_remaining || 0) - 1),
+              is_full: typeof nextIsFull === 'boolean'
+                ? nextIsFull
+                : ((Number.isFinite(nextSpotsRemaining) ? nextSpotsRemaining : Math.max(0, Number(sess.spots_remaining || 0) - 1)) <= 0),
+              booked_members: nextMembers || sess.booked_members
+            }
+          : sess
+      ));
+
+      setAllSessions(prev => prev.map(sess =>
+        sess.id === sessionId
+          ? {
+              ...sess,
+              booked_count: Number.isFinite(nextBookedCount) ? nextBookedCount : (Number(sess.booked_count || 0) + 1),
+              spots_remaining: Number.isFinite(nextSpotsRemaining) ? nextSpotsRemaining : Math.max(0, Number(sess.spots_remaining || 0) - 1),
+              is_full: typeof nextIsFull === 'boolean'
+                ? nextIsFull
+                : ((Number.isFinite(nextSpotsRemaining) ? nextSpotsRemaining : Math.max(0, Number(sess.spots_remaining || 0) - 1)) <= 0),
+              booked_members: nextMembers || sess.booked_members
+            }
+          : sess
+      ));
+
+      setSessionDetailsModal(prev => {
+        if (!prev.isOpen || prev.session?.id !== sessionId) return prev;
+
+        const mergedSession = {
+          ...prev.session,
+          booked_count: Number.isFinite(nextBookedCount) ? nextBookedCount : (Number(prev.session?.booked_count || 0) + 1),
+          spots_remaining: Number.isFinite(nextSpotsRemaining) ? nextSpotsRemaining : Math.max(0, Number(prev.session?.spots_remaining || 0) - 1),
+          is_full: typeof nextIsFull === 'boolean'
+            ? nextIsFull
+            : ((Number.isFinite(nextSpotsRemaining) ? nextSpotsRemaining : Math.max(0, Number(prev.session?.spots_remaining || 0) - 1)) <= 0),
+          booked_members: nextMembers || prev.session?.booked_members
+        };
+
+        return {
+          ...prev,
+          session: mergedSession,
+          members: nextMembers || prev.members
+        };
+      });
+
+      setAdminNotice({
+        type: 'success',
+        message: data?.message || 'Walk-in added successfully!'
+      });
+    } catch (err) {
+      console.error('Error adding walk-in:', err);
+      setAdminNotice({
+        type: 'error',
+        message: err.message || 'Failed to add walk-in'
+      });
+    } finally {
+      setAddWalkinLoading(false);
+    }
+  };
+
+  const openSessionDetails = async (session) => {
+    const embeddedMembers = Array.isArray(session?.booked_members) ? session.booked_members : [];
+    setAttendeeFilter('all');
+    setSessionDetailsModal({ isOpen: true, session, members: embeddedMembers, loading: true });
+
+    try {
+      const res = await fetch(`http://localhost:3000/admin/class_sessions/${session.id}/booked_members`, {
+        credentials: 'include'
+      });
+
+      if (!res.ok) throw new Error('Failed to load attendees');
+
+      const data = await res.json();
+      const fetchedMembers = Array.isArray(data)
+        ? data
+        : data?.booked_members || data?.members || data?.bookings || data?.data || [];
+
+      setSessionDetailsModal(prev => {
+        if (!prev.isOpen || prev.session?.id !== session.id) return prev;
+        return {
+          ...prev,
+          members: Array.isArray(fetchedMembers) ? fetchedMembers : embeddedMembers,
+          loading: false
+        };
+      });
+    } catch (err) {
+      console.error('Error loading session attendees:', err);
+      setSessionDetailsModal(prev => {
+        if (!prev.isOpen || prev.session?.id !== session.id) return prev;
+        return { ...prev, loading: false };
+      });
+    }
+  };
+
+  const closeSessionDetails = () => {
+    setAttendeeFilter('all');
+    setSessionDetailsModal({ isOpen: false, session: null, members: [], loading: false });
+  };
 
   const formatCurrency = (value) => {
     if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
@@ -312,9 +524,23 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
   const toImageUrl = (path) => {
     if (!path) return null;
     if (typeof path !== 'string') return null;
-    if (path.startsWith('http://') || path.startsWith('https://')) return path;
-    return `http://localhost:3000${path}`;
+    if (
+      path.startsWith('http://') ||
+      path.startsWith('https://') ||
+      path.startsWith('blob:') ||
+      path.startsWith('data:')
+    ) return path;
+    return `http://localhost:3000${path.startsWith('/') ? '' : '/'}${path}`;
   };
+
+  const totalAttendees = sessionDetailsModal.members.length;
+  const walkinAttendees = sessionDetailsModal.members.filter(member => Boolean(member?.is_walkin)).length;
+  const memberAttendees = totalAttendees - walkinAttendees;
+  const filteredSessionMembers = sessionDetailsModal.members.filter((member) => {
+    if (attendeeFilter === 'walkins') return member?.is_walkin === true;
+    if (attendeeFilter === 'members') return member?.is_walkin !== true;
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-200 font-sans selection:bg-red-500/30 overflow-hidden relative">
@@ -386,8 +612,10 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
       <main className="max-w-[1800px] mx-auto px-6 pt-28 pb-12 relative z-10">
 
         {adminNotice && (
-          <div className={`mb-4 rounded-xl px-4 py-3 border text-xs font-semibold ${adminNotice.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-red-500/10 border-red-500/30 text-red-300'}`}>
-            {adminNotice.message}
+          <div className="fixed top-24 right-6 z-[70] animate-[fadeIn_0.2s_ease-out]">
+            <div className={`rounded-xl px-4 py-3 border text-xs font-semibold shadow-2xl backdrop-blur-sm ${adminNotice.type === 'success' ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200' : 'bg-red-500/15 border-red-500/40 text-red-200'}`}>
+              {adminNotice.message}
+            </div>
           </div>
         )}
         
@@ -711,7 +939,19 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {filteredSignups.length > 0 ? filteredSignups.map((member) => (
+                    {filteredSignups.length > 0 ? filteredSignups.map((member) => {
+                      const memberImagePath =
+                        member?.profile_photo ||
+                        member?.profile_photo_url ||
+                        member?.image ||
+                        member?.image_url ||
+                        member?.avatar ||
+                        member?.photo ||
+                        member?.profile_picture ||
+                        null;
+                      const memberImageUrl = toImageUrl(memberImagePath);
+
+                      return (
                       <tr 
                         key={member.id} 
                         onClick={() => setSelectedUser(member)}
@@ -719,9 +959,17 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
                       >
                         <td className="py-3 pl-2">
                           <div className="flex items-center gap-3">
-                            <div className="w-7 h-7 rounded bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-300 border border-white/5">
-                              {member.name?.charAt(0).toUpperCase()}
-                            </div>
+                            {memberImageUrl ? (
+                              <img
+                                src={memberImageUrl}
+                                alt={member.name || 'Member'}
+                                className="w-7 h-7 rounded object-cover border border-white/10"
+                              />
+                            ) : (
+                              <div className="w-7 h-7 rounded bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-300 border border-white/5">
+                                {member.name?.charAt(0).toUpperCase()}
+                              </div>
+                            )}
                             <div>
                               <p className="text-xs font-medium text-zinc-200">{member.name}</p>
                               <p className="text-[10px] text-zinc-600">{member.email}</p>
@@ -736,7 +984,7 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
                         <td className="py-3"><span className="text-xs text-zinc-400">{member.plan}</span></td>
                         <td className="py-3 pr-2 text-right"><span className="text-[10px] font-mono text-zinc-600">{member.joined_at}</span></td>
                       </tr>
-                    )) : (
+                    );}) : (
                       <tr><td colSpan="4" className="py-8 text-center text-xs text-zinc-600">No members found</td></tr>
                     )}
                   </tbody>
@@ -796,7 +1044,19 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                      {transactions.map((txn, idx) => (
+                      {transactions.map((txn, idx) => {
+                        const txnImagePath =
+                          txn?.user_profile_photo ||
+                          txn?.profile_photo ||
+                          txn?.profile_photo_url ||
+                          txn?.user_image ||
+                          txn?.image ||
+                          txn?.avatar ||
+                          txn?.photo ||
+                          null;
+                        const txnImageUrl = toImageUrl(txnImagePath);
+
+                        return (
                         <tr 
                           key={txn.id || idx} 
                           className="group hover:bg-white/[0.02] transition-colors cursor-pointer"
@@ -808,9 +1068,17 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
                           </td>
                           <td className="py-3">
                             <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-400 border border-white/5">
-                                {(txn.user_name || 'U').charAt(0).toUpperCase()}
-                              </div>
+                              {txnImageUrl ? (
+                                <img
+                                  src={txnImageUrl}
+                                  alt={txn.user_name || 'User'}
+                                  className="w-6 h-6 rounded object-cover border border-white/10"
+                                />
+                              ) : (
+                                <div className="w-6 h-6 rounded bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-400 border border-white/5">
+                                  {(txn.user_name || 'U').charAt(0).toUpperCase()}
+                                </div>
+                              )}
                               <div>
                                 <p className="text-xs font-medium text-zinc-200">{txn.user_name || 'Unknown'}</p>
                               </div>
@@ -848,7 +1116,7 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
                             <span className="text-sm font-bold text-emerald-400">{formatCurrency(txn.amount)}</span>
                           </td>
                         </tr>
-                      ))}
+                      );})}
                     </tbody>
                   </table>
                 </div>
@@ -1011,6 +1279,111 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
               )}
             </motion.div>
 
+            {/* Class Check-In Section */}
+            <motion.div variants={item} className="bg-gradient-to-b from-blue-900/10 to-zinc-900/40 border border-blue-500/20 rounded-3xl p-6 backdrop-blur-sm min-h-[300px]">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-bold text-blue-500 uppercase tracking-wider flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C6.5 6.253 2 10.998 2 17s4.5 10.747 10 10.747c5.5 0 10-4.998 10-10.747S17.5 6.253 12 6.253z" /></svg>
+                    Class Operations
+                  </h3>
+                  <span className="text-[10px] bg-blue-500/10 text-blue-500 px-2 py-0.5 rounded border border-blue-500/20">
+                    {classOpsTab === 'today' ? 'Today Ops' : 'Upcoming Bookings'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 p-1 bg-black/30 rounded-lg border border-blue-500/20">
+                  <button
+                    type="button"
+                    onClick={() => setClassOpsTab('today')}
+                    className={`px-2.5 py-1 text-[10px] rounded-md font-semibold transition ${classOpsTab === 'today' ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+                  >
+                    Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setClassOpsTab('upcoming')}
+                    className={`px-2.5 py-1 text-[10px] rounded-md font-semibold transition ${classOpsTab === 'upcoming' ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+                  >
+                    All
+                  </button>
+                </div>
+              </div>
+
+              <div className={`space-y-3 ${classOpsTab === 'upcoming' ? 'max-h-[460px] overflow-y-auto pr-1' : ''}`}>
+                {(classOpsTab === 'today' ? sessionsLoading : allSessionsLoading) ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="w-5 h-5 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+                  </div>
+                ) : (classOpsTab === 'today' ? todaySessions : allSessions).length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center mb-3">
+                      <svg className="w-6 h-6 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4" />
+                      </svg>
+                    </div>
+                    <p className="text-xs text-zinc-400">{classOpsTab === 'today' ? 'No classes today' : 'No upcoming sessions'}</p>
+                  </div>
+                ) : (
+                  (classOpsTab === 'today' ? todaySessions : allSessions).map((session) => (
+                    <div 
+                      key={session.id} 
+                      onClick={() => openSessionDetails(session)}
+                      className="p-4 rounded-xl bg-black/40 border border-blue-500/20 hover:border-blue-500/40 transition-all cursor-pointer group"
+                    >
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-blue-300 group-hover:text-blue-200 transition">{session.class_name}</p>
+                          <p className="text-[10px] text-zinc-400 mt-1">
+                            <span className="inline-block mr-2">⏰ {session.formatted_time}</span>
+                            <span className="inline-block">👨‍🏫 {session.instructor}</span>
+                          </p>
+                          {classOpsTab === 'upcoming' && (
+                            <p className="text-[10px] text-zinc-500 mt-1">{session.formatted_date || session.scheduled_date || 'Date TBD'}</p>
+                          )}
+                          <div className="mt-2 flex items-center gap-2">
+                            <div className="flex-1 h-1.5 bg-zinc-700 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-blue-500 rounded-full transition-all"
+                                style={{ width: `${session.capacity > 0 ? (session.booked_count / session.capacity) * 100 : 0}%` }}
+                              ></div>
+                            </div>
+                            <p className="text-[10px] font-semibold text-zinc-300 min-w-fit">
+                              {session.booked_count}/{session.capacity}
+                            </p>
+                          </div>
+                          <p className="text-[9px] text-blue-400 mt-1.5 opacity-0 group-hover:opacity-100 transition">Click to view attendees →</p>
+                        </div>
+
+                        {classOpsTab === 'today' ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddWalkin(session.id);
+                            }}
+                            disabled={addWalkinLoading || session.is_full}
+                            className={`px-3 py-1.5 rounded-lg font-semibold text-xs whitespace-nowrap transition-all ${
+                              session.is_full
+                                ? 'bg-red-500/10 text-red-400 cursor-not-allowed border border-red-500/20'
+                                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-blue-600/50 border border-blue-500/30'
+                            } disabled:opacity-50`}
+                          >
+                            {session.is_full ? 'Full' : 'Add Walk-in'}
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-blue-300 bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded-md whitespace-nowrap">
+                            Attendees: {Array.isArray(session.booked_members) ? session.booked_members.length : Number(session.booked_count || 0)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[9px] text-zinc-500">
+                        Spots remaining: <span className="text-blue-400 font-semibold">{session.spots_remaining}</span>
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+
             {/* Expiring Soon Alert Box */}
             <motion.div variants={item} className="bg-gradient-to-b from-amber-900/10 to-zinc-900/40 border border-amber-500/20 rounded-3xl p-6 backdrop-blur-sm min-h-[300px]">
               <div className="flex items-center justify-between mb-6">
@@ -1109,7 +1482,19 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
                   <div className="py-8 text-center text-xs text-zinc-600">No trainers available</div>
                 ) : (
                   trainersDirectory.slice(0, 40).map((trainer, idx) => {
-                    const imageUrl = toImageUrl(trainer?.profile_photo || trainer?.profile_photo_url || trainer?.user?.profile_photo);
+                    const trainerImagePath =
+                      trainer?.profile_photo ||
+                      trainer?.profile_photo_url ||
+                      trainer?.image ||
+                      trainer?.image_url ||
+                      trainer?.avatar ||
+                      trainer?.photo ||
+                      trainer?.profile_picture ||
+                      trainer?.trainer_image ||
+                      trainer?.user?.profile_photo ||
+                      trainer?.user?.profile_photo_url ||
+                      null;
+                    const imageUrl = toImageUrl(trainerImagePath);
                     return (
                       <button
                         type="button"
@@ -1194,6 +1579,19 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
               const memberPhone = selectedDisputeContext.user?.phone;
               const trainerEmail = selectedDisputeContext.trainer?.email || disputeDetailModal.dispute?.trainer_email;
               const trainerPhone = selectedDisputeContext.trainer?.phone || disputeDetailModal.dispute?.trainer_phone;
+              const trainerImagePath =
+                selectedDisputeContext.trainer?.profile_photo ||
+                selectedDisputeContext.trainer?.profile_photo_url ||
+                selectedDisputeContext.trainer?.image ||
+                selectedDisputeContext.trainer?.image_url ||
+                selectedDisputeContext.trainer?.avatar ||
+                selectedDisputeContext.trainer?.photo ||
+                selectedDisputeContext.trainer?.profile_picture ||
+                selectedDisputeContext.trainer?.trainer_image ||
+                selectedDisputeContext.trainer?.user?.profile_photo ||
+                selectedDisputeContext.trainer?.user?.profile_photo_url ||
+                null;
+              const trainerImageUrl = toImageUrl(trainerImagePath);
 
               return (
                 <>
@@ -1291,9 +1689,9 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
                       <div className="bg-black/40 border border-white/10 rounded-xl p-4">
                         <p className="text-[11px] text-zinc-500 uppercase font-bold tracking-wider">Trainer Contact</p>
                         <div className="flex items-center gap-3 mt-2">
-                          {(selectedDisputeContext.trainer?.profile_photo || selectedDisputeContext.trainer?.user?.profile_photo) ? (
+                          {trainerImageUrl ? (
                             <img 
-                              src={`http://localhost:3000${selectedDisputeContext.trainer?.profile_photo || selectedDisputeContext.trainer?.user?.profile_photo}`} 
+                              src={trainerImageUrl}
                               alt={disputeDetailModal.dispute.trainer_name}
                               className="w-12 h-12 rounded-full object-cover border-2 border-white/20"
                             />
@@ -1370,6 +1768,111 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
         user={selectedUser}
         onClose={() => setSelectedUser(null)}
       />
+
+      {/* Session Details Modal */}
+      {sessionDetailsModal.isOpen && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 z-50 flex items-center justify-center p-4">
+          <div className="bg-zinc-950 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden shadow-2xl border border-zinc-800">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-white">{sessionDetailsModal.session?.class_name}</h2>
+                <p className="text-blue-100 text-sm mt-1">{sessionDetailsModal.session?.formatted_date}</p>
+              </div>
+              <button 
+                onClick={closeSessionDetails}
+                className="text-blue-100 hover:text-white hover:bg-blue-800 p-2 rounded-lg transition"
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto" style={{maxHeight: 'calc(80vh - 100px)'}}>
+              <div className="mb-6 grid grid-cols-2 gap-4">
+                <div className="bg-zinc-900 rounded-lg p-3 border border-zinc-800">
+                  <p className="text-zinc-400 text-xs mb-1">Instructor</p>
+                  <p className="text-white font-semibold">{sessionDetailsModal.session?.instructor}</p>
+                </div>
+                <div className="bg-zinc-900 rounded-lg p-3 border border-zinc-800">
+                  <p className="text-zinc-400 text-xs mb-1">Capacity</p>
+                  <p className="text-white font-semibold">{sessionDetailsModal.session?.booked_count}/{sessionDetailsModal.session?.capacity}</p>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider">Attendees</h3>
+                  <div className="flex items-center gap-1 p-1 bg-zinc-900/70 rounded-lg border border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setAttendeeFilter('all')}
+                      className={`px-2 py-1 text-[10px] rounded-md font-semibold transition ${attendeeFilter === 'all' ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+                    >
+                      All ({totalAttendees})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAttendeeFilter('members')}
+                      className={`px-2 py-1 text-[10px] rounded-md font-semibold transition ${attendeeFilter === 'members' ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+                    >
+                      Members ({memberAttendees})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAttendeeFilter('walkins')}
+                      className={`px-2 py-1 text-[10px] rounded-md font-semibold transition ${attendeeFilter === 'walkins' ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+                    >
+                      Walk-ins ({walkinAttendees})
+                    </button>
+                  </div>
+                </div>
+
+                {sessionDetailsModal.loading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="w-5 h-5 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+                  </div>
+                ) : filteredSessionMembers.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-zinc-500 text-sm">
+                      {Number(sessionDetailsModal.session?.booked_count || 0) > 0
+                        ? (attendeeFilter === 'walkins'
+                            ? 'No walk-ins in this session yet.'
+                            : attendeeFilter === 'members'
+                              ? 'No registered members in this session yet.'
+                              : 'Attendee details not returned yet.')
+                        : 'No bookings yet'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {filteredSessionMembers.map((member, idx) => {
+                      const isWalkin = Boolean(member?.is_walkin);
+                      const displayName = member?.name || member?.user_name || (isWalkin ? 'Walk-in' : 'Member');
+                      const displayEmail = member?.email || member?.user_email || null;
+                      const displayPhone = member?.phone || member?.user_phone || null;
+
+                      return (
+                      <div key={member?.booking_id || member?.id || idx} className="flex items-center gap-3 p-3 bg-zinc-900/50 border border-zinc-800 rounded-lg hover:border-blue-500/30 transition">
+                        <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center text-xs font-bold text-blue-400 flex-shrink-0">
+                          {(displayName || 'U').charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-zinc-200 truncate">{displayName}</p>
+                          <p className="text-[10px] text-zinc-500 truncate">{displayEmail || 'No email'}</p>
+                          {displayPhone && <p className="text-[10px] text-zinc-600 truncate">📱 {displayPhone}</p>}
+                          {member?.booking_id && <p className="text-[10px] text-zinc-600 truncate">Booking #{member.booking_id}</p>}
+                        </div>
+                        {isWalkin && <span className="text-[9px] bg-amber-500/20 text-amber-400 px-2 py-1 rounded border border-amber-500/20 whitespace-nowrap">Walk-in</span>}
+                      </div>
+                    );})}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
