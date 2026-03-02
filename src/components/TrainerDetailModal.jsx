@@ -7,22 +7,18 @@ function TrainerDetailModal({ isOpen, trainer, onClose }) {
   const [loading, setLoading] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const [profileImageError, setProfileImageError] = useState(false);
 
   useEffect(() => {
     if (!isOpen || !trainer) return;
 
+    setProfileImageError(false);
     setLoading(true);
     fetch(`http://localhost:3000/admin/trainers/${trainer.trainer_id || trainer.id}`, {
       credentials: 'include'
     })
       .then(res => res.json())
       .then(data => {
-        console.log('Full trainer detail:', data);
-        console.log('Active packages array:', data?.active_packages);
-        if (data?.active_packages && data.active_packages.length > 0) {
-          console.log('First package full object:', data.active_packages[0]);
-          console.table(data.active_packages);
-        }
         setTrainerDetail(data);
         setLoading(false);
       })
@@ -34,17 +30,80 @@ function TrainerDetailModal({ isOpen, trainer, onClose }) {
 
   if (!isOpen || !trainer) return null;
 
+  const trainerProfile = trainerDetail?.trainer || trainerDetail?.profile || trainerDetail || {};
+  const trainerName = trainerProfile?.trainer_name || trainerProfile?.name || trainer?.trainer_name || trainer?.name || 'Trainer';
+  const trainerEmail = trainerProfile?.email || trainerProfile?.trainer_email || trainer?.email || trainer?.trainer_email || 'No email';
+  const trainerPhone = trainerProfile?.phone || trainerProfile?.phone_number || trainerProfile?.mobile || trainer?.phone || trainer?.phone_number || 'No phone';
+  const trainerSpecialty = trainerProfile?.specialty || trainerProfile?.category || trainer?.specialty || 'General Training';
+  const trainerBio = trainerProfile?.bio || trainerProfile?.description || trainerProfile?.about || null;
+  const trainerStatus = trainerProfile?.status || (trainerProfile?.active === false ? 'inactive' : 'active');
+  const profilePhoto =
+    trainerProfile?.profile_photo ||
+    trainerProfile?.profile_photo_url ||
+    trainerProfile?.image ||
+    trainerProfile?.image_url ||
+    trainerProfile?.avatar ||
+    trainerProfile?.photo ||
+    trainerProfile?.profile_picture ||
+    trainerProfile?.trainer_image ||
+    trainerProfile?.user?.profile_photo ||
+    trainerProfile?.user?.profile_photo_url ||
+    trainer?.profile_photo ||
+    trainer?.profile_photo_url ||
+    trainer?.image ||
+    trainer?.image_url ||
+    trainer?.avatar ||
+    trainer?.photo ||
+    trainer?.profile_picture ||
+    trainer?.trainer_image ||
+    trainer?.user?.profile_photo ||
+    trainer?.user?.profile_photo_url ||
+    null;
+
+  const normalizeImageUrl = (path) => {
+    if (!path || typeof path !== 'string') return null;
+    if (
+      path.startsWith('http://') ||
+      path.startsWith('https://') ||
+      path.startsWith('blob:') ||
+      path.startsWith('data:')
+    ) return path;
+    return `http://localhost:3000${path.startsWith('/') ? '' : '/'}${path}`;
+  };
+
+  const profilePhotoUrl = typeof profilePhoto === 'string'
+    ? normalizeImageUrl(profilePhoto)
+    : null;
+
+  const normalizedPhone = typeof trainerPhone === 'string'
+    ? trainerPhone.split('').filter((ch) => ((ch >= '0' && ch <= '9') || ch === '+')).join('')
+    : '';
+  const whatsappPhone = typeof trainerPhone === 'string'
+    ? trainerPhone.split('').filter((ch) => (ch >= '0' && ch <= '9')).join('')
+    : '';
+  const hasEmail = trainerEmail && trainerEmail !== 'No email';
+  const hasPhone = trainerPhone && trainerPhone !== 'No phone';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-black/30">
       <div className="bg-zinc-900 border border-white/10 rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="sticky top-0 bg-zinc-900/95 backdrop-blur border-b border-white/5 p-6 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-600 to-red-700 flex items-center justify-center text-white font-bold text-lg">
-              {(trainer.trainer_name || trainer.name || 'T').charAt(0).toUpperCase()}
-            </div>
+            {profilePhotoUrl && !profileImageError ? (
+              <img
+                src={profilePhotoUrl}
+                alt={trainerName}
+                className="w-12 h-12 rounded-xl object-cover border border-white/10"
+                onError={() => setProfileImageError(true)}
+              />
+            ) : (
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-600 to-red-700 flex items-center justify-center text-white font-bold text-lg">
+                {(trainerName || 'T').charAt(0).toUpperCase()}
+              </div>
+            )}
             <div>
-              <h2 className="text-2xl font-black text-white">{trainer.trainer_name || trainer.name}</h2>
+              <h2 className="text-2xl font-black text-white">{trainerName}</h2>
               <p className="text-sm text-zinc-400">ID: {trainer.trainer_id || trainer.id}</p>
             </div>
           </div>
@@ -64,6 +123,93 @@ function TrainerDetailModal({ isOpen, trainer, onClose }) {
             <div className="text-center py-12 text-zinc-400">Loading trainer details...</div>
           ) : (
             <>
+              {/* Full Profile */}
+              <div className="bg-black/40 border border-white/10 rounded-2xl p-5">
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Trainer Profile</h3>
+                    <p className="text-xs text-zinc-500 mt-1">Complete contact and profile details</p>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${String(trainerStatus).toLowerCase() === 'active' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-zinc-500/15 text-zinc-300 border-zinc-500/30'}`}>
+                    {String(trainerStatus).toUpperCase()}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2 bg-zinc-950/60 border border-white/5 rounded-xl p-4 flex items-center gap-4">
+                    {profilePhotoUrl && !profileImageError ? (
+                      <img
+                        src={profilePhotoUrl}
+                        alt={trainerName}
+                        className="w-16 h-16 rounded-xl object-cover border border-white/10"
+                        onError={() => setProfileImageError(true)}
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-red-600 to-red-700 flex items-center justify-center text-white font-bold text-2xl">
+                        {(trainerName || 'T').charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-200">{trainerName}</p>
+                      <p className="text-xs text-zinc-500 mt-1">{trainerSpecialty}</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-zinc-950/60 border border-white/5 rounded-xl p-3">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Email</p>
+                    <p className="text-sm text-zinc-200 mt-1 break-all">{trainerEmail}</p>
+                  </div>
+                  <div className="bg-zinc-950/60 border border-white/5 rounded-xl p-3">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Phone</p>
+                    <p className="text-sm text-zinc-200 mt-1">{trainerPhone}</p>
+                  </div>
+                  <div className="bg-zinc-950/60 border border-white/5 rounded-xl p-3 md:col-span-2">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Specialty</p>
+                    <p className="text-sm text-zinc-200 mt-1">{trainerSpecialty}</p>
+                  </div>
+                  <div className="bg-zinc-950/60 border border-white/5 rounded-xl p-3 md:col-span-2">
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Quick Actions</p>
+                    <div className="flex flex-wrap gap-2">
+                      {hasEmail && (
+                        <a
+                          href={`mailto:${trainerEmail}`}
+                          className="px-3 py-1.5 text-[10px] font-bold rounded bg-sky-500/10 border border-sky-500/20 text-sky-300 hover:bg-sky-500/20"
+                        >
+                          Email
+                        </a>
+                      )}
+                      {hasPhone && (
+                        <a
+                          href={`tel:${normalizedPhone}`}
+                          className="px-3 py-1.5 text-[10px] font-bold rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 hover:bg-emerald-500/20"
+                        >
+                          Call
+                        </a>
+                      )}
+                      {hasPhone && whatsappPhone && (
+                        <a
+                          href={`https://wa.me/${whatsappPhone}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3 py-1.5 text-[10px] font-bold rounded bg-green-500/10 border border-green-500/20 text-green-300 hover:bg-green-500/20"
+                        >
+                          WhatsApp
+                        </a>
+                      )}
+                      {!hasEmail && !hasPhone && (
+                        <span className="text-[10px] text-zinc-500">No contact methods available</span>
+                      )}
+                    </div>
+                  </div>
+                  {trainerBio && (
+                    <div className="bg-zinc-950/60 border border-white/5 rounded-xl p-3 md:col-span-2">
+                      <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Bio</p>
+                      <p className="text-sm text-zinc-300 mt-1 leading-relaxed">{trainerBio}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Earnings Summary */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="bg-black/40 border border-white/5 rounded-2xl p-4">
