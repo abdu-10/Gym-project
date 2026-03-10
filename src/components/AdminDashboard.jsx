@@ -5,6 +5,7 @@ import {
 import { motion } from 'framer-motion';
 import TrainerDetailModal from './TrainerDetailModal';
 import UserDetailModal from './UserDetailModal';
+import AdminOnboardingModal from './AdminOnboardingModal';
 
 function AdminDashboard({ user, onLogout, onOpenScanner }) {
   const [stats, setStats] = useState(null);
@@ -41,6 +42,7 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
   const [addWalkinLoading, setAddWalkinLoading] = useState(false);
   const [sessionDetailsModal, setSessionDetailsModal] = useState({ isOpen: false, session: null, members: [], loading: false });
   const [attendeeFilter, setAttendeeFilter] = useState('all');
+  const [showOnboardingModal, setShowOnboardingModal] = useState(false);
 
   useEffect(() => {
     fetch('http://localhost:3000/admin_stats', { credentials: 'include' })
@@ -366,6 +368,23 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
     setSessionDetailsModal({ isOpen: false, session: null, members: [], loading: false });
   };
 
+  const handleOnboardingCreated = (createdRole, createdPayload) => {
+    const created = createdPayload?.user || createdPayload?.trainer || createdPayload?.admin || createdPayload?.data || createdPayload;
+
+    if (createdRole === 'member' && created) {
+      setAllUsers(prev => [created, ...prev]);
+    }
+
+    if (createdRole === 'trainer' && created) {
+      setAllTrainers(prev => [created, ...prev]);
+    }
+
+    setAdminNotice({
+      type: 'success',
+      message: `${createdRole.charAt(0).toUpperCase() + createdRole.slice(1)} account created successfully.`
+    });
+  };
+
   const formatCurrency = (value) => {
     if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value));
@@ -597,6 +616,14 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
             </div>
 
             {/* Primary Action */}
+            <button
+              onClick={() => setShowOnboardingModal(true)}
+              className="bg-red-600/90 text-white hover:bg-red-500 px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 border border-red-500/30"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              <span>ADD ACCOUNT</span>
+            </button>
+
             <button 
               onClick={onOpenScanner}
               className="ml-2 bg-white text-black hover:bg-zinc-200 px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(255,255,255,0.1)]"
@@ -1516,7 +1543,7 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
                           )}
                           <div className="min-w-0 flex-1">
                             <p className="text-xs text-zinc-200 font-semibold truncate">{trainer.trainer_name || trainer.name || 'Unknown trainer'}</p>
-                            <p className="text-[10px] text-zinc-500 truncate">{trainer.email || trainer.trainer_email || trainer.specialty || 'No details'}</p>
+                            <p className="text-[10px] text-zinc-500 truncate">{trainer.email || trainer.trainer_email || trainer.role_title || trainer.role || trainer.specialty || 'No details'}</p>
                           </div>
                         </div>
                       </button>
@@ -1767,6 +1794,12 @@ function AdminDashboard({ user, onLogout, onOpenScanner }) {
         isOpen={!!selectedUser}
         user={selectedUser}
         onClose={() => setSelectedUser(null)}
+      />
+
+      <AdminOnboardingModal
+        isOpen={showOnboardingModal}
+        onClose={() => setShowOnboardingModal(false)}
+        onCreated={handleOnboardingCreated}
       />
 
       {/* Session Details Modal */}
