@@ -198,12 +198,15 @@ function Trainers({ user }) {
               <h3 className="text-xl font-semibold mb-1 text-gray-800">
                 {trainer.name}
               </h3>
-              <div className="text-red-600 font-medium mb-2">{trainer.role}</div>
+              <div className="text-red-600 font-medium mb-2">{trainer.role_title || trainer.role || 'Personal Trainer'}</div>
               <p className="text-gray-600 mb-4">{trainer.bio}</p>
               <div className="flex justify-center space-x-4 mb-4">
                 <a
-                  href=""
+                  href={trainer.instagram || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="text-gray-400 hover:text-red-600 transition duration-300"
+                  onClick={(e) => !trainer.instagram && e.preventDefault()}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -217,8 +220,11 @@ function Trainers({ user }) {
                   </svg>
                 </a>
                 <a
-                  href=""
+                  href={trainer.facebook || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="text-gray-400 hover:text-red-600 transition duration-300"
+                  onClick={(e) => !trainer.facebook && e.preventDefault()}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -233,8 +239,11 @@ function Trainers({ user }) {
                 </a>
 
                 <a
-                  href=""
+                  href={trainer.twitter || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="text-gray-400 hover:text-red-600 transition duration-300"
+                  onClick={(e) => !trainer.twitter && e.preventDefault()}
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
