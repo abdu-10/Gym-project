@@ -164,6 +164,7 @@ function MainApp() {
                 <MemberDashboard 
                   user={user} 
                   onLogout={handleLogout} 
+                  onUserUpdate={setUser}
                   onGoHome={() => navigate('/')} 
                 />
               )}
