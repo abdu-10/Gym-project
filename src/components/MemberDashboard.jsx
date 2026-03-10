@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import QRCode from "react-qr-code";
 import MyBookings from './MyBookings'; 
+import Toast from './Toast';
 
 // --- ICONS ---
 const CalendarIcon = () => (
@@ -35,10 +36,29 @@ const CloseIcon = () => (
     </svg>
 );
 
-function MemberDashboard({ user, onGoHome }) {
+function MemberDashboard({ user, onGoHome, onUserUpdate }) {
   const [showScanner, setShowScanner] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [profilePromptDismissed, setProfilePromptDismissed] = useState(null);
+  const [profileSavedSuccessfully, setProfileSavedSuccessfully] = useState(false);
+  const [forceShowProfilePrompt, setForceShowProfilePrompt] = useState(false);
+  const [profilePromptVisible, setProfilePromptVisible] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState(null);
+  const [profileSuccess, setProfileSuccess] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [dobSelection, setDobSelection] = useState({
+    year: '',
+    month: '',
+    day: ''
+  });
+  const [profileForm, setProfileForm] = useState({
+    phone: '',
+    gender: '',
+    dateOfBirth: '',
+    address: ''
+  });
 
   // --- FETCH DATA ---
   useEffect(() => {
@@ -50,7 +70,263 @@ function MemberDashboard({ user, onGoHome }) {
       .catch(err => console.error("Failed to load dashboard", err));
   }, []);
 
+  useEffect(() => {
+    setProfileForm({
+      phone: user?.phone || '',
+      gender: user?.gender || '',
+      dateOfBirth: user?.date_of_birth || user?.dateOfBirth || '',
+      address: user?.address || ''
+    });
+  }, [user]);
+
+  useEffect(() => {
+    const [year = '', month = '', day = ''] = String(profileForm.dateOfBirth || '').split('-');
+    setDobSelection({ year, month, day });
+  }, [profileForm.dateOfBirth]);
+
+  useEffect(() => {
+    if (!user?.id || typeof window === 'undefined') return;
+    const dismissKey = `member-profile-prompt-dismissed-${user.id}`;
+    setProfilePromptDismissed(localStorage.getItem(dismissKey) === '1');
+    setProfileSavedSuccessfully(localStorage.getItem(`member-profile-saved-${user.id}`) === '1');
+  }, [user?.id]);
+
+  const profileChecks = [
+    profileForm.phone,
+    profileForm.gender,
+    profileForm.dateOfBirth,
+    profileForm.address
+  ];
+  const completedFields = profileChecks.filter(value => String(value || '').trim().length > 0).length;
+  const backendProfileComplete = user?.profile_complete === true || user?.profile_complete === 'true';
+  const isProfileComplete = backendProfileComplete || completedFields >= profileChecks.length;
+  const shouldShowProfilePrompt = activeTab === 'overview' && profilePromptVisible;
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    if (profilePromptDismissed === null) return;
+
+    if (forceShowProfilePrompt) {
+      setProfilePromptVisible(true);
+      return;
+    }
+
+    if (profilePromptDismissed || isProfileComplete || profileSavedSuccessfully) {
+      setProfilePromptVisible(false);
+      return;
+    }
+
+    if (!isProfileComplete && !profilePromptDismissed && !profileSavedSuccessfully) {
+      setProfilePromptVisible(true);
+    }
+  }, [user?.id, isProfileComplete, profilePromptDismissed, forceShowProfilePrompt, profileSavedSuccessfully]);
+
   if (!user) return null;
+
+  const handleProfileFieldChange = (key, value) => {
+    setProfileForm(prev => ({ ...prev, [key]: value }));
+    setProfileError(null);
+    setProfileSuccess(null);
+  };
+
+  const handleDismissProfilePrompt = () => {
+    setProfilePromptDismissed(true);
+    setForceShowProfilePrompt(false);
+    setProfilePromptVisible(false);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`member-profile-prompt-dismissed-${user.id}`, '1');
+    }
+  };
+
+  const handleOpenProfilePrompt = () => {
+    setForceShowProfilePrompt(true);
+    setProfilePromptDismissed(false);
+    setProfileSavedSuccessfully(false);
+    setProfilePromptVisible(true);
+    setProfileError(null);
+    setProfileSuccess(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(`member-profile-prompt-dismissed-${user.id}`);
+      localStorage.removeItem(`member-profile-saved-${user.id}`);
+    }
+  };
+
+  const currentYear = new Date().getFullYear();
+  const dobYearOptions = Array.from({ length: 90 }, (_, i) => String(currentYear - 12 - i));
+  const dobMonthOptions = [
+    { value: '01', label: 'January' },
+    { value: '02', label: 'February' },
+    { value: '03', label: 'March' },
+    { value: '04', label: 'April' },
+    { value: '05', label: 'May' },
+    { value: '06', label: 'June' },
+    { value: '07', label: 'July' },
+    { value: '08', label: 'August' },
+    { value: '09', label: 'September' },
+    { value: '10', label: 'October' },
+    { value: '11', label: 'November' },
+    { value: '12', label: 'December' }
+  ];
+  const daysInSelectedMonth = dobSelection.month
+    ? new Date(Number(dobSelection.year || currentYear), Number(dobSelection.month), 0).getDate()
+    : 31;
+  const dobDayOptions = Array.from({ length: daysInSelectedMonth }, (_, i) => String(i + 1).padStart(2, '0'));
+
+  const handleDobSelectionChange = (part, value) => {
+    const next = { ...dobSelection, [part]: value };
+
+    if (next.month && next.day) {
+      const maxDay = new Date(Number(next.year || currentYear), Number(next.month), 0).getDate();
+      const safeDay = Math.min(Number(next.day), maxDay);
+      next.day = String(safeDay).padStart(2, '0');
+    }
+
+    if (next.year && next.month && next.day) {
+      const maxDay = new Date(Number(next.year), Number(next.month), 0).getDate();
+      const safeDay = Math.min(Number(next.day), maxDay);
+      const normalizedDay = String(safeDay).padStart(2, '0');
+      const normalizedDate = `${next.year}-${next.month}-${normalizedDay}`;
+      next.day = normalizedDay;
+      setDobSelection(next);
+      handleProfileFieldChange('dateOfBirth', normalizedDate);
+      return;
+    }
+
+    setDobSelection(next);
+    handleProfileFieldChange('dateOfBirth', '');
+  };
+
+  const submitProfileUpdate = async (e) => {
+    e.preventDefault();
+    setProfileError(null);
+    setProfileSuccess(null);
+
+    if (!profileForm.phone.trim()) {
+      setProfileError('Phone is required to complete your profile.');
+      return;
+    }
+
+    setProfileSaving(true);
+    const normalizedPayload = {
+      phone: profileForm.phone.trim(),
+      gender: profileForm.gender.trim(),
+      date_of_birth: profileForm.dateOfBirth,
+      address: profileForm.address.trim()
+    };
+
+    const payloadVariants = [
+      normalizedPayload,
+      { user: normalizedPayload },
+      { member: normalizedPayload },
+      { profile: normalizedPayload },
+      { account: normalizedPayload },
+      { user: { profile: normalizedPayload } }
+    ];
+
+    const submittedFields = {
+      phone: normalizedPayload.phone,
+      gender: normalizedPayload.gender,
+      date_of_birth: normalizedPayload.date_of_birth,
+      address: normalizedPayload.address
+    };
+
+    const hasPersistedSubmittedFields = (candidateUser) => {
+      if (!candidateUser || typeof candidateUser !== 'object') return false;
+
+      const normalizedCandidate = {
+        phone: String(candidateUser.phone || '').trim(),
+        gender: String(candidateUser.gender || '').trim().toLowerCase(),
+        date_of_birth: String(candidateUser.date_of_birth || candidateUser.dateOfBirth || '').trim(),
+        address: String(candidateUser.address || '').trim()
+      };
+
+      if (submittedFields.phone && normalizedCandidate.phone !== submittedFields.phone) return false;
+      if (submittedFields.gender && normalizedCandidate.gender !== submittedFields.gender.toLowerCase()) return false;
+      if (submittedFields.date_of_birth && normalizedCandidate.date_of_birth !== submittedFields.date_of_birth) return false;
+      if (submittedFields.address && normalizedCandidate.address !== submittedFields.address) return false;
+
+      return true;
+    };
+
+    const endpoints = [
+      'http://localhost:3000/me/profile',
+      'http://localhost:3000/me',
+      `http://localhost:3000/users/${user.id}`,
+      `http://localhost:3000/members/${user.id}`
+    ];
+
+    let lastError = null;
+
+    for (const endpoint of endpoints) {
+      for (const payload of payloadVariants) {
+        try {
+          const res = await fetch(endpoint, {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (res.status === 404) {
+            break;
+          }
+
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            lastError = new Error(data?.error || data?.message || 'Unable to save profile right now.');
+            continue;
+          }
+
+          let candidateUser = data?.user || data?.member || data?.profile || (data && typeof data === 'object' ? data : null);
+
+          if (!hasPersistedSubmittedFields(candidateUser)) {
+            const verifyRes = await fetch('http://localhost:3000/me', { credentials: 'include' });
+            const verifyData = await verifyRes.json().catch(() => ({}));
+            const verifiedUser = verifyData?.user || verifyData;
+
+            if (hasPersistedSubmittedFields(verifiedUser)) {
+              candidateUser = verifiedUser;
+            } else {
+              lastError = new Error('Profile update was accepted but did not persist your fields.');
+              continue;
+            }
+          }
+
+          const updatedUser = {
+            ...user,
+            ...candidateUser,
+            phone: candidateUser?.phone ?? normalizedPayload.phone,
+            gender: candidateUser?.gender ?? normalizedPayload.gender,
+            address: candidateUser?.address ?? normalizedPayload.address,
+            date_of_birth: candidateUser?.date_of_birth || candidateUser?.dateOfBirth || normalizedPayload.date_of_birth,
+            dateOfBirth: candidateUser?.dateOfBirth || candidateUser?.date_of_birth || normalizedPayload.date_of_birth,
+            profile_complete: candidateUser?.profile_complete ?? user?.profile_complete
+          };
+
+          console.log('Profile save success - updatedUser.profile_complete:', updatedUser.profile_complete);
+          onUserUpdate?.(updatedUser);
+          setProfileSuccess('Profile updated successfully. Nice one!');
+          setToast({ message: 'Profile updated successfully. Welcome to your upgraded FitElite experience! 🔥', type: 'success' });
+          setProfilePromptDismissed(true);
+          setProfileSavedSuccessfully(true);
+          setForceShowProfilePrompt(false);
+          setProfilePromptVisible(false);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(`member-profile-prompt-dismissed-${user.id}`, '1');
+            localStorage.setItem(`member-profile-saved-${user.id}`, '1');
+          }
+          setProfileSaving(false);
+          return;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+    }
+
+    setProfileError(lastError?.message || 'Could not update profile. Please try again later.');
+    setProfileSaving(false);
+  };
 
   // --- 1. CARD STYLE LOGIC ---
   const getCardStyle = (plan) => {
@@ -110,12 +386,23 @@ function MemberDashboard({ user, onGoHome }) {
             MEMBER <span className="text-gray-400 font-light">PORTAL</span>
             </h1>
         </div>
-        <button 
-          onClick={onGoHome}
-          className="text-sm font-semibold text-gray-500 hover:text-red-600 transition-colors flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md"
-        >
-          &larr; Back to Home
-        </button>
+        <div className="flex items-center gap-2">
+          {!isProfileComplete && !profileSavedSuccessfully && (
+            <button
+              type="button"
+              onClick={handleOpenProfilePrompt}
+              className="text-xs font-black uppercase tracking-wider text-red-700 bg-red-50 border border-red-200 hover:bg-red-100 px-3 py-2 rounded-lg shadow-sm transition"
+            >
+              Complete Profile
+            </button>
+          )}
+          <button 
+            onClick={onGoHome}
+            className="text-sm font-semibold text-gray-500 hover:text-red-600 transition-colors flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md"
+          >
+            &larr; Back to Home
+          </button>
+        </div>
       </div>
 
       {/* Tab Navigation */}
@@ -188,7 +475,7 @@ function MemberDashboard({ user, onGoHome }) {
                   {user.email}
                 </p>
                 
-                <div className="grid grid-cols-2 gap-4 border-t border-gray-100 py-6">
+                <div className="grid grid-cols-2 gap-4 border-t border-gray-100 py-2">
                     <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-4 rounded-xl">
                         <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Membership</p>
                         <p className="text-xl font-black text-gray-900">{user.plan}</p>
@@ -201,6 +488,30 @@ function MemberDashboard({ user, onGoHome }) {
                         </span>
                     </div>
                 </div>
+
+                {/* Profile Details - Only show if profile complete */}
+                {isProfileComplete && (
+                  <div className="grid grid-cols-2 gap-2 border-t border-gray-100 py-2">
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-xl">
+                        <p className="text-xs font-black text-blue-600 uppercase tracking-wider mb-2">Phone</p>
+                        <p className="text-lg font-black text-gray-900">{user.phone || '—'}</p>
+                    </div>
+                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-xl">
+                        <p className="text-xs font-black text-purple-600 uppercase tracking-wider mb-2">Gender</p>
+                        <p className="text-lg font-black text-gray-900">{user.gender || '—'}</p>
+                    </div>
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-xl">
+                        <p className="text-xs font-black text-green-600 uppercase tracking-wider mb-2">Date of Birth</p>
+                        <p className="text-lg font-black text-gray-900">
+                          {user.date_of_birth ? new Date(user.date_of_birth).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}
+                        </p>
+                    </div>
+                    <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-xl">
+                        <p className="text-xs font-black text-orange-600 uppercase tracking-wider mb-2">Address</p>
+                        <p className="text-lg font-black text-gray-900 truncate">{user.address || '—'}</p>
+                    </div>
+                  </div>
+                )}
             </div>
           </div>
 
@@ -407,8 +718,8 @@ function MemberDashboard({ user, onGoHome }) {
               </div>
               Recent Access Log
             </h3>
-            <span className="text-xs font-black text-blue-700 bg-blue-100 px-3 py-1.5 rounded-full uppercase tracking-wider flex items-center gap-1.5">
-              <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>
+            <span className="text-xs font-black text-red-700 bg-red-100 px-3 py-1.5 rounded-full uppercase tracking-wider flex items-center gap-1.5">
+              <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
               Live
             </span>
           </div>
@@ -418,7 +729,7 @@ function MemberDashboard({ user, onGoHome }) {
               dashboardData.recent_activity.map((activity, index) => (
                 <div key={index} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full flex items-center justify-center border bg-blue-50 border-blue-100 text-blue-600">
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center border bg-red-50 border-red-100 text-red-600">
                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                        </svg>
@@ -452,9 +763,143 @@ function MemberDashboard({ user, onGoHome }) {
         </div>
       )}
 
+      {/* Elegant Complete Profile Modal */}
+      {shouldShowProfilePrompt && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-lg rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-zinc-900 text-white animate-slideUp" style={{animationDuration: '0.6s', animationFillMode: 'both', animationDelay: '0.1s'}}>
+            <div className="px-5 py-4 border-b border-white/10 bg-zinc-800">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-red-400">Complete Profile</p>
+                  <h3 className="text-lg font-black mt-1.5 text-white">Welcome, {user.name.split(' ')[0]} 👋</h3>
+                  <p className="text-xs text-slate-400 mt-1.5">Finish your profile for better support.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDismissProfilePrompt}
+                  className="text-slate-400 hover:text-white hover:bg-white/10 p-1.5 rounded-lg transition-all"
+                  aria-label="Close profile prompt"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+            </div>
+
+            <div className="px-5 py-4">
+              <form onSubmit={submitProfileUpdate} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div style={{animationDuration: '0.6s', animationDelay: '0.3s', animationFillMode: 'both'}}>
+                  <label className="text-[10px] uppercase tracking-wider font-bold text-slate-300 flex items-center gap-1.5 mb-1.5">📱 Phone</label>
+                  <div className="relative group">
+                    <input
+                      value={profileForm.phone}
+                      onChange={(e) => handleProfileFieldChange('phone', e.target.value)}
+                      className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 transition-all"
+                      placeholder="+254 700 000"
+                    />
+                    {profileForm.phone && <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-400 text-sm">✓</div>}
+                  </div>
+                </div>
+                <div style={{animationDuration: '0.6s', animationDelay: '0.4s', animationFillMode: 'both'}}>
+                  <label className="text-[10px] uppercase tracking-wider font-bold text-slate-300 flex items-center gap-1.5 mb-1.5">⚧ Gender</label>
+                  <div className="relative group">
+                    <select
+                      value={profileForm.gender}
+                      onChange={(e) => handleProfileFieldChange('gender', e.target.value)}
+                      className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:ring-2 focus:ring-red-600 transition-all appearance-none cursor-pointer"
+                    >
+                      <option className="bg-white text-zinc-900" value="">Select</option>
+                      <option className="bg-white text-zinc-900" value="male">Male</option>
+                      <option className="bg-white text-zinc-900" value="female">Female</option>
+                      <option className="bg-white text-zinc-900" value="other">Other</option>
+                    </select>
+                    <svg className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
+                    {profileForm.gender && <div className="absolute right-8 top-1/2 -translate-y-1/2 text-green-400 text-sm">✓</div>}
+                  </div>
+                </div>
+                <div className="md:col-span-2" style={{animationDuration: '0.6s', animationDelay: '0.5s', animationFillMode: 'both'}}>
+                  <label className="text-[10px] uppercase tracking-wider font-bold text-slate-300 flex items-center gap-1.5 mb-1.5">📅 DOB</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <select
+                      value={dobSelection.month}
+                      onChange={(e) => handleDobSelectionChange('month', e.target.value)}
+                      className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-2 text-xs text-zinc-100 focus:outline-none focus:ring-2 focus:ring-red-600 transition-all appearance-none cursor-pointer"
+                    >
+                      <option className="bg-white text-zinc-900" value="">Month</option>
+                      {dobMonthOptions.map((month) => (
+                        <option key={month.value} className="bg-white text-zinc-900" value={month.value}>{month.label}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={dobSelection.day}
+                      onChange={(e) => handleDobSelectionChange('day', e.target.value)}
+                      className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-2 text-xs text-zinc-100 focus:outline-none focus:ring-2 focus:ring-red-600 transition-all appearance-none cursor-pointer"
+                    >
+                      <option className="bg-white text-zinc-900" value="">Day</option>
+                      {dobDayOptions.map((day) => (
+                        <option key={day} className="bg-white text-zinc-900" value={day}>{day}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={dobSelection.year}
+                      onChange={(e) => handleDobSelectionChange('year', e.target.value)}
+                      className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-2 py-2 text-xs text-zinc-100 focus:outline-none focus:ring-2 focus:ring-red-600 transition-all appearance-none cursor-pointer"
+                    >
+                      <option className="bg-white text-zinc-900" value="">Year</option>
+                      {dobYearOptions.map((year) => (
+                        <option key={year} className="bg-white text-zinc-900" value={year}>{year}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="md:col-span-2" style={{animationDuration: '0.6s', animationDelay: '0.6s', animationFillMode: 'both'}}>
+                  <label className="text-[10px] uppercase tracking-wider font-bold text-slate-300 flex items-center gap-1.5 mb-1.5">📍 Address</label>
+                  <div className="relative group">
+                    <input
+                      value={profileForm.address}
+                      onChange={(e) => handleProfileFieldChange('address', e.target.value)}
+                      className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 transition-all"
+                      placeholder="City, Street"
+                    />
+                    {profileForm.address && <div className="absolute right-2 top-1/2 -translate-y-1/2 text-green-400 text-sm">✓</div>}
+                  </div>
+                </div>
+
+                {profileError && (
+                  <div className="md:col-span-2 text-xs font-semibold text-red-300 bg-red-900/30 border border-red-700 rounded-lg px-3 py-2" role="alert">
+                    <div className="flex items-center gap-1.5"><span>⚠️</span> {profileError}</div>
+                  </div>
+                )}
+                {profileSuccess && (
+                  <div className="md:col-span-2 text-xs font-semibold text-emerald-300 bg-emerald-900/30 border border-emerald-700 rounded-lg px-3 py-2" role="status">
+                    <div className="flex items-center gap-1.5"><span>✨</span> {profileSuccess}</div>
+                  </div>
+                )}
+
+                <div className="md:col-span-2 flex flex-col sm:flex-row gap-2 sm:justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={handleDismissProfilePrompt}
+                    className="px-4 py-2 rounded-lg border border-zinc-700 text-slate-300 hover:text-white hover:bg-zinc-800 text-xs font-bold transition-all"
+                  >
+                    Later
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={profileSaving}
+                    className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-black transition-all"
+                  >
+                    {profileSaving ? 'Saving' : '✅ Save'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* --- SCANNER MODAL (ANIMATED) --- */}
       {showScanner && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gradient-to-b from-black/80 to-black/60 backdrop-blur-lg animate-fadeIn">
             <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 relative transform transition-all scale-100">
                 
                 <button 
@@ -490,7 +935,15 @@ function MemberDashboard({ user, onGoHome }) {
         </div>
       )}
 
-      {/* Inline styles for custom scan animation */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Inline styles for custom animations */}
       <style>{`
         @keyframes scan {
             0% { transform: translateY(-100%); }
@@ -498,6 +951,52 @@ function MemberDashboard({ user, onGoHome }) {
         }
         .animate-scan {
             animation: scan 2s linear infinite;
+        }
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .animate-slideUp {
+            animation: slideUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+        @keyframes slideInField {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        .animate-slideInField {
+            animation: slideInField 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .animate-slideDown {
+            animation: slideDown 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        .animate-shimmer {
+            animation: shimmer 2s infinite;
         }
       `}</style>
     </div>
